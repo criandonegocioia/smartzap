@@ -297,6 +297,22 @@ export function precheckContactForTemplate(
 
   const values: ResolvedTemplateValues = { body: [] }
 
+  // Debug/observabilidade (para skip_reason): mapear qual "variável" (key) + qual token/raw foi usado.
+  // Ex.: body:3 (raw="{{email}}") ou body:email (raw="{{custom_field}}")
+  const requiredParams: Array<{
+    where: 'header' | 'body' | 'button'
+    key: string
+    buttonIndex?: number
+    raw: string
+    resolved: string
+  }> = []
+
+  const fmtRaw = (raw: unknown) => {
+    const v = raw === null || raw === undefined ? '' : String(raw)
+    const trimmed = v.trim()
+    return trimmed.length ? trimmed : '<vazio>'
+  }
+
   if (spec.parameterFormat === 'positional') {
     const headerArr = normalizePositionalArrayOrMap((rawTemplateVariables as any)?.header)
     const bodyArr = normalizePositionalArrayOrMap((rawTemplateVariables as any)?.body)
@@ -305,12 +321,18 @@ export function precheckContactForTemplate(
     if (spec.header?.requiredKeys.length) {
       const key = spec.header.requiredKeys[0] // only one
       const idx = Number(key)
-      values.header = [{ key, text: resolveVarValue(headerArr[idx - 1], contact) }]
+      const raw = String(headerArr[idx - 1] ?? '')
+      const resolved = resolveVarValue(raw, contact)
+      values.header = [{ key, text: resolved }]
+      requiredParams.push({ where: 'header', key, raw, resolved })
     }
 
     values.body = spec.body.requiredKeys.map(k => {
       const idx = Number(k)
-      return { key: k, text: resolveVarValue(bodyArr[idx - 1], contact) }
+      const raw = String(bodyArr[idx - 1] ?? '')
+      const resolved = resolveVarValue(raw, contact)
+      requiredParams.push({ where: 'body', key: k, raw, resolved })
+      return { key: k, text: resolved }
     })
 
     const buttonValues: Array<{ index: number; params: Array<{ key: string; text: string }> }> = []
@@ -323,7 +345,10 @@ export function precheckContactForTemplate(
         // Accept both legacy key styles: button_{btnIndex}_0 (0-based) and button_{btnIndex}_1 (1-based)
         const legacy = buttons[`button_${b.index}_${idx - 1}`]
         const modern = buttons[`button_${b.index}_${idx}`]
-        params.push({ key: k, text: resolveVarValue(legacy ?? modern, contact) })
+        const raw = String((legacy ?? modern) ?? '')
+        const resolved = resolveVarValue(raw, contact)
+        params.push({ key: k, text: resolved })
+        requiredParams.push({ where: 'button', key: k, buttonIndex: b.index, raw, resolved })
       }
       buttonValues.push({ index: b.index, params })
     }
@@ -335,24 +360,30 @@ export function precheckContactForTemplate(
 
     if (spec.header?.requiredKeys.length) {
       const key = spec.header.requiredKeys[0]
-      values.header = [{ key, text: resolveVarValue(headerMap[key], contact) }]
+      const raw = String(headerMap[key] ?? '')
+      const resolved = resolveVarValue(raw, contact)
+      values.header = [{ key, text: resolved }]
+      requiredParams.push({ where: 'header', key, raw, resolved })
     }
 
-    values.body = spec.body.requiredKeys.map(k => ({ key: k, text: resolveVarValue(bodyMap[k], contact) }))
+    values.body = spec.body.requiredKeys.map(k => {
+      const raw = String(bodyMap[k] ?? '')
+      const resolved = resolveVarValue(raw, contact)
+      requiredParams.push({ where: 'body', key: k, raw, resolved })
+      return { key: k, text: resolved }
+    })
 
     // buttons dynamic is forbidden for named, so nothing to resolve
   }
 
-  const missing: string[] = []
-  if (values.header?.some(p => isBlank(p.text))) missing.push('header')
-  values.body.forEach((p) => {
-    if (isBlank(p.text)) missing.push(`body:${p.key}`)
-  })
-  values.buttons?.forEach(btn => {
-    btn.params.forEach((p, i) => {
-      if (isBlank(p.text)) missing.push(`button:${btn.index}:${i + 1}`)
+  const missing = requiredParams
+    .filter(p => isBlank(p.resolved))
+    .map(p => {
+      if (p.where === 'button') {
+        return `button:${p.buttonIndex}:${p.key} (raw="${fmtRaw(p.raw)}")`
+      }
+      return `${p.where}:${p.key} (raw="${fmtRaw(p.raw)}")`
     })
-  })
 
   if (missing.length) {
     return {
