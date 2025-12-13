@@ -12,8 +12,8 @@ CRM + automação de campanhas no WhatsApp (Cloud API), com fila/workflows (Upst
 <p align="center">
    <a href="docs/GUIA_CONFIGURACAO.md">
       <img
-         alt="Guia de Instalação — Clique aqui"
-         src="docs/assets/guia-instalacao-banner-v2.svg"
+         alt="Guia de Configuração — Clique aqui"
+         src="docs/assets/guia-configuracao-banner-v1.svg"
          width="920"
       />
    </a>
@@ -22,6 +22,13 @@ CRM + automação de campanhas no WhatsApp (Cloud API), com fila/workflows (Upst
 </div>
 
 ---
+
+## Navegação rápida
+
+- **Guia (produção)**: [docs/GUIA_CONFIGURACAO.md](docs/GUIA_CONFIGURACAO.md)
+- **Arquitetura**: [UI → API → filas → Meta → webhook → DB](#arquitetura-primeiro-como-tudo-se-conecta)
+- **Rodar local**: [Como rodar localmente](#como-rodar-localmente)
+- **Docs internas**: [Documentação interna](#documentacao-interna)
 
 ## O que é
 

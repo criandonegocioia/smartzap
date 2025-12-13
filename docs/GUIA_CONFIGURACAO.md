@@ -1,12 +1,36 @@
-# SmartZap — Guia de Configuração
+# SmartZap — Guia de Configuração (produção)
 
-Este guia existe para uma coisa: colocar o SmartZap funcionando em **produção**.
+Este guia existe para uma coisa: colocar o SmartZap funcionando em **produção** com o menor atrito possível.
 
-O caminho recomendado é **Vercel + Wizard** (sem mexer em terminal, sem configurações “na mão”).
+O caminho recomendado é **Vercel + Wizard** (sem mexer em terminal, sem configuração “na mão”).
 
-> Se você quiser rodar em localhost para desenvolvimento, deixei um apêndice colapsado no final: **[Apêndice: Desenvolvimento local (opcional)](#apendice-desenvolvimento-local-opcional)**.
+> [!IMPORTANT]
+> **Segurança:** os prints deste guia são **sanitizados** (tokens/chaves/e-mail/telefone mascarados). Se você adicionar imagens novas, **não comite segredos**.
+> 
+> Dica: existe um script para ajudar na sanitização: `scripts/redact_docs_images.py`.
 
-> **Nota de segurança:** as imagens deste guia são **sanitizadas** (tokens/chaves/e-mail/telefone ficam mascarados). Se você adicionar prints novos, não comite segredos.
+> [!TIP]
+> Se você quer rodar em localhost (apenas desenvolvimento), pule direto para: **[Apêndice: Desenvolvimento local (opcional)](#apendice-desenvolvimento-local-opcional)**.
+
+---
+
+## TL;DR (30–45 min)
+
+- [ ] Fazer fork do repositório no GitHub.
+- [ ] Deploy na Vercel.
+- [ ] Pegar credenciais (Supabase + QStash + Token da Vercel).
+- [ ] Rodar o Wizard em `https://SEU-PROJETO.vercel.app/setup`.
+- [ ] Validar a “prova de vida” em `https://SEU-PROJETO.vercel.app/api/system`.
+
+```mermaid
+flowchart TD
+    A[Fork no GitHub] --> B[Deploy na Vercel]
+    B --> C[Abrir /setup]
+    C --> D[Wizard: Supabase + QStash + Perfil]
+    D --> E[Salvar envs na Vercel]
+    E --> F[Deploy automático]
+    F --> G[Prova de vida: /api/system + /login]
+```
 
 ---
 
@@ -21,12 +45,11 @@ O caminho recomendado é **Vercel + Wizard** (sem mexer em terminal, sem configu
     - [5. Finalizar e logar](#5-finalizar-e-logar)
     - [6. Prova de vida (produção)](#6-prova-de-vida-producao)
 - [Troubleshooting (produção)](#troubleshooting)
-- [Apêndice: prints](#apendice-prints)
+- [Apêndice: prints (sanitizados)](#apendice-prints)
 - [Apêndice: Desenvolvimento local (opcional)](#apendice-desenvolvimento-local-opcional)
+- [Suporte](#suporte)
 
 ---
-
-<a id="pre-requisitos"></a>
 
 ## Pré-requisitos
 
@@ -39,9 +62,14 @@ Crie conta (gratuita) e deixe aberto em outra aba:
 | Supabase | Banco de dados | <https://supabase.com> |
 | Upstash (QStash) | Fila/workflows | <https://upstash.com> |
 
----
+### Checklist antes de começar
 
-<a id="vercel--wizard-recomendado"></a>
+- [ ] Tenho acesso a um **projeto Supabase** (URL + keys).
+- [ ] Tenho acesso a um **token QStash** (Upstash).
+- [ ] Vou criar um **token da Vercel** (aparece 1 vez).
+- [ ] Estou no domínio **Production** do projeto na Vercel (não Preview).
+
+---
 
 ## Vercel + Wizard (recomendado)
 
@@ -95,6 +123,9 @@ Se você já alterou arquivos e ocorrer conflito, resolva com calma (ou peça aj
 ### 3. Coletar credenciais
 
 Você vai usar estas chaves no Wizard.
+
+> [!TIP]
+> Se você preferir um caminho “sem automação”, dá para concluir o setup apenas com o botão **Ver SQL de Inicialização** (e executando no Supabase). A automação (connection string + “Conectar Banco”) é um atalho.
 
 #### Supabase
 
@@ -190,6 +221,15 @@ Antes de começar, tenha em mãos:
 
 > Se você fechou a aba no meio do processo, geralmente dá para continuar por aqui: `https://SEU-PROJETO.vercel.app/setup/wizard?resume=true`.
 
+#### Checklist do Wizard
+
+- [ ] Tenho o **Token da Vercel**.
+- [ ] Tenho `NEXT_PUBLIC_SUPABASE_URL`.
+- [ ] Tenho `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (ou `...DEFAULT_KEY`).
+- [ ] Tenho `SUPABASE_SECRET_KEY`.
+- [ ] Tenho `QSTASH_TOKEN`.
+- [ ] (Opcional) Tenho a **Connection String** do Supabase (Connection Pooler/Transaction pooler, porta **6543**) para automação.
+
 ---
 
 #### Tela a tela (bem detalhado)
@@ -232,7 +272,8 @@ Se o Wizard detectar tabelas já existentes, ele vai te mostrar um aviso e habil
 - **Resetar Banco** (apaga e recria) → clique duas vezes (vira **Confirmar Reset**)
 - seguir sem resetar (mantém e tenta migrar)
 
-> Dica: se você tiver erro 403/42501 depois, quase sempre é porque o SQL não foi executado até o fim (principalmente a parte de **PERMISSIONS/GRANTs**).
+> [!IMPORTANT]
+> Se você tiver erro 403/42501 depois, quase sempre é porque o SQL não foi executado até o fim (principalmente a parte de **PERMISSIONS/GRANTs**).
 
 ##### 3) QStash (Upstash)
 
@@ -346,6 +387,23 @@ E confira:
 - `health.services.qstash` (QStash)
 - `health.services.whatsapp` (se você configurou WhatsApp)
 
+> [!TIP]
+> Em deploys recém-feitos, alguns checks podem ficar `degraded` por alguns segundos/minutos enquanto a Vercel termina o rollout. O importante é não ficar preso em `unhealthy`.
+
+### Wizard “configura mas não funciona” (ambiente errado)
+
+Isso acontece quando você roda o setup em um link de **Preview** e acha que configurou a Production.
+
+Checklist:
+
+- Confirme a URL do Wizard: ela deve ser `https://SEU-PROJETO.vercel.app/...` (Production).
+- No painel da Vercel, confira **Settings → Environment Variables** e verifique se as variáveis estão em **Production**.
+
+### Token da Vercel inválido / “Unauthorized”
+
+- Gere um novo token em **Vercel → Settings → Tokens**.
+- Use **Scope: Full Account**.
+- Cole o token no `/setup` novamente.
 ### Supabase 403 (42501) “permission denied for table”
 
 Isso costuma acontecer quando as tabelas foram criadas, mas os **GRANTs** não foram aplicados.
@@ -360,6 +418,26 @@ Você não migrou.
 - Clique em **Ver SQL de Inicialização**, copie e execute no **SQL Editor** do Supabase.
 - Se você estiver usando automação: confirme a connection string (Transaction pooler, porta 6543) e clique em **Conectar Banco**.
 
+### Erro ao conectar no banco (automation) usando connection string
+
+Checklist rápido:
+
+- Você usou **Transaction pooler** (porta **6543**) e não o connection string “direto”.
+- O usuário/senha estão corretos.
+- O projeto Supabase não está pausado.
+
+> [!NOTE]
+> Se a automação falhar, finalize o setup pelo caminho manual (SQL Editor). Você não fica “travado”.
+
+### /api/system fica unhealthy (database)
+
+Normalmente é:
+
+- variáveis do Supabase erradas (URL/keys), ou
+- schema não aplicado (migrations não rodadas).
+
+Volte na etapa do Wizard (ou execute o SQL manualmente) e depois aguarde um novo deploy.
+
 ### Campanhas não disparam
 
 Checklist:
@@ -369,13 +447,28 @@ Checklist:
 
 > Dica: em produção, sempre confira o status em `https://SEU-PROJETO.vercel.app/api/system` (seção `health.services.qstash`).
 
+### WhatsApp (opcional) — erros comuns
+
+- **Webhook não atualiza status (delivered/read/failed)**: confirme `WHATSAPP_VERIFY_TOKEN` (se aplicável ao seu fluxo) e se o endpoint está apontando para o domínio correto.
+- **131042 (payment)**: conta do WhatsApp Business com problema de pagamento; o painel costuma mostrar alerta de conta.
+- **131056 (pair rate limit)**: envio rápido demais para o mesmo destinatário; reexecute com espaçamento (o sistema tem backoff/retries).
+
 ---
 
 <a id="apendice-prints"></a>
 
-## Apêndice: prints
+## Apêndice: prints (sanitizados)
 
 As imagens ficam em `docs/`.
+
+> [!IMPORTANT]
+> Se você adicionar prints novos:
+> 
+> - **Nunca** comite tokens/chaves/telefone/e-mail reais.
+> - Prefira usar dados fictícios.
+> - Se precisar, rode o sanitizador: `scripts/redact_docs_images.py`.
+>
+> Para checagens de segurança antes de subir, também existe o scanner: `scripts/scan-secrets.mjs`.
 
 ### Vercel — Deploy
 
