@@ -4,6 +4,9 @@
 -- - Persistir métricas de disparo por batch (latência Meta/DB, contagens, config usada)
 -- - Persistir uma “execução” (run) por campanha/traceId para comparar configurações ao longo do tempo
 
+-- Necessário para gen_random_uuid()
+create extension if not exists pgcrypto;
+
 -- ============================================================================
 -- BATCH METRICS
 -- ============================================================================

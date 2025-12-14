@@ -67,10 +67,21 @@ export default function ManualDraftEditorPage({
     return cached?.spec ?? draft?.spec
   }
 
-  const canSend = (() => {
+  const validation = (() => {
     const spec: any = getCurrentSpec() || {}
+    const issues: string[] = []
+
+    const name = String(spec?.name || '').trim()
     const bodyText = typeof spec?.body?.text === 'string' ? spec.body.text : ''
-    return bodyText.trim().length > 0
+
+    if (!name) issues.push('Defina um nome para o modelo')
+    if (name && !/^[a-z0-9_]+$/.test(name)) issues.push('Nome inválido (use apenas a-z, 0-9 e _)')
+    if (!bodyText.trim()) issues.push('Corpo é obrigatório')
+
+    return {
+      canSend: issues.length === 0,
+      issues,
+    }
   })()
 
   return (
@@ -135,6 +146,18 @@ export default function ManualDraftEditorPage({
             Voltar
           </Button>
 
+          <div className="hidden md:block text-xs text-gray-400">
+            {validation.issues.length === 0 ? (
+              <span className="text-emerald-300">Pronto para enviar</span>
+            ) : (
+              <span>
+                {validation.issues.length === 1
+                  ? `Falta: ${validation.issues[0]}`
+                  : `Faltam: ${validation.issues.slice(0, 2).join(' • ')}${validation.issues.length > 2 ? '…' : ''}`}
+              </span>
+            )}
+          </div>
+
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -159,8 +182,8 @@ export default function ManualDraftEditorPage({
                   // erros já são exibidos via onError
                 }
               }}
-              disabled={!draft || submitMutation.isPending || updateMutation.isPending || !canSend}
-              className={!canSend ? 'opacity-60' : ''}
+              disabled={!draft || submitMutation.isPending || updateMutation.isPending || !validation.canSend}
+              className={!validation.canSend ? 'opacity-60' : ''}
             >
               {submitMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               Enviar para análise

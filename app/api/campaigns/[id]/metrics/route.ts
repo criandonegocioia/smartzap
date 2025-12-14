@@ -137,5 +137,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     },
     baseline: baselineFallback,
     source: 'campaigns_fallback',
+    hint: 'Métricas avançadas (run/batch) ainda não estão disponíveis. Aplique a migration 0008_add_campaign_performance_metrics.sql no Supabase e execute uma nova campanha para gerar o baseline por execução.',
   })
 }

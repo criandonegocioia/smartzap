@@ -4,7 +4,7 @@ import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Code, Bold, Italic, Strikethrough, Plus, ChevronDown } from 'lucide-react'
+import { Code, Bold, Italic, Strikethrough, Plus, ChevronDown, Play } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -138,32 +138,79 @@ function Preview({ spec }: { spec: Spec }) {
   })()
 
   return (
-    <div className="glass-panel rounded-xl p-4">
-      <div className="text-sm font-semibold text-white mb-3">Prévia do modelo</div>
-      <div className="rounded-xl border border-white/10 bg-zinc-950 p-4 space-y-3">
-        {headerLabel ? (
-          <div className="text-sm text-gray-200 font-medium">
-            {headerLabel}
-          </div>
-        ) : null}
+    <div className="glass-panel rounded-xl p-0 overflow-hidden">
+      <div className="px-4 py-3 flex items-center justify-between border-b border-white/10">
+        <div className="text-sm font-semibold text-white">Prévia do modelo</div>
+        <button
+          type="button"
+          className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-white/10 bg-zinc-900 hover:bg-white/5 text-gray-200"
+          title="Visualizar"
+        >
+          <Play className="w-4 h-4" />
+        </button>
+      </div>
 
-        <div className="text-sm text-white whitespace-pre-wrap">
-          {bodyText || <span className="text-gray-500">(Sem texto no BODY)</span>}
-        </div>
-
-        {footerText ? (
-          <div className="text-xs text-gray-400 whitespace-pre-wrap">{footerText}</div>
-        ) : null}
-
-        {buttons.length > 0 ? (
-          <div className="pt-2 border-t border-white/10 space-y-2">
-            {buttons.map((b, idx) => (
-              <div key={idx} className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-200">
-                {b.text || (b.type === 'COPY_CODE' ? 'Copiar código' : b.type)}
+      <div className="p-4">
+        {/* “telefone” */}
+        <div className="rounded-2xl border border-white/10 bg-zinc-950/40 p-3">
+          <div className="rounded-2xl overflow-hidden border border-white/10 bg-[#efeae2]">
+            {/* header da conversa */}
+            <div className="h-11 px-3 flex items-center gap-2 bg-[#075e54] text-white">
+              <div className="h-7 w-7 rounded-full bg-white/20" />
+              <div className="min-w-0">
+                <div className="text-[12px] font-semibold leading-none truncate">Business</div>
+                <div className="text-[10px] text-white/80 leading-none mt-0.5 truncate">template</div>
               </div>
-            ))}
+            </div>
+
+            {/* conversa */}
+            <div className="p-3">
+              <div className="max-w-[320px] rounded-xl bg-white text-zinc-900 shadow-sm px-3 py-2">
+                {headerLabel ? (
+                  <div className="text-[13px] font-semibold leading-snug">
+                    {headerLabel}
+                  </div>
+                ) : null}
+
+                <div className="text-[13px] leading-snug whitespace-pre-wrap">
+                  {bodyText || <span className="text-zinc-400">Digite o corpo para ver a prévia.</span>}
+                </div>
+
+                {footerText ? (
+                  <div className="mt-1 text-[11px] text-zinc-500 whitespace-pre-wrap">
+                    {footerText}
+                  </div>
+                ) : null}
+
+                <div className="mt-1 flex items-center justify-end text-[10px] text-zinc-400">
+                  16:34
+                </div>
+              </div>
+
+              {buttons.length > 0 ? (
+                <div className="mt-3 max-w-[320px] overflow-hidden rounded-xl border border-black/10 bg-white">
+                  {buttons.map((b, idx) => (
+                    <div
+                      key={idx}
+                      className={cn(
+                        'px-3 py-2 text-center text-[12px] font-medium text-blue-600',
+                        idx > 0 ? 'border-t border-black/10' : ''
+                      )}
+                    >
+                      {b.text || (b.type === 'COPY_CODE' ? 'Copiar código' : b.type)}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="px-3 pb-3">
+              <button type="button" className="w-full text-xs text-blue-600 hover:text-blue-500">
+                Visualizar
+              </button>
+            </div>
           </div>
-        ) : null}
+        </div>
       </div>
     </div>
   )
@@ -345,8 +392,8 @@ export function ManualTemplateBuilder({
         <div className="glass-panel rounded-xl p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-sm font-semibold text-white">Configuração do modelo</div>
-              <div className="text-xs text-gray-500">Nome, categoria e idioma do template.</div>
+              <div className="text-base font-semibold text-white">Nome e idioma do modelo</div>
+              <div className="text-xs text-gray-400 mt-0.5">Defina como o modelo será identificado.</div>
             </div>
           </div>
 
@@ -398,7 +445,7 @@ export function ManualTemplateBuilder({
         {/* CONTEÚDO (como na Meta) */}
         <div className="glass-panel rounded-xl p-5 space-y-4">
           <div>
-            <div className="text-sm font-semibold text-white">Conteúdo</div>
+            <div className="text-base font-semibold text-white">Conteúdo</div>
             <div className="text-xs text-gray-400 mt-1">
               Adicione um cabeçalho, corpo de texto e rodapé para o seu modelo. A Meta analisa variáveis e conteúdo antes da aprovação.
             </div>
@@ -488,23 +535,23 @@ export function ManualTemplateBuilder({
                   <label className="text-xs font-medium text-gray-300">Cabeçalho</label>
                   <div className="text-xs text-gray-500">{headerTextCount}/60</div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    ref={headerTextRef as any}
-                    value={headerText}
-                    onChange={(e) => updateHeader({ ...header, format: 'TEXT', text: e.target.value })}
-                    className="bg-zinc-900 border-white/10 text-white"
-                    placeholder="Adicione uma pequena linha de texto (opcional)"
-                    maxLength={60}
-                  />
+                <Input
+                  ref={headerTextRef as any}
+                  value={headerText}
+                  onChange={(e) => updateHeader({ ...header, format: 'TEXT', text: e.target.value })}
+                  className="bg-zinc-900 border-white/10 text-white"
+                  placeholder="Adicione uma pequena linha de texto (opcional)"
+                  maxLength={60}
+                />
+                <div className="flex items-center justify-end">
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => addVariable('header')}
-                    className="border-white/10 bg-zinc-900 hover:bg-white/5"
+                    className="h-8 px-2 text-gray-300 hover:bg-white/5"
                   >
                     <Plus className="w-4 h-4" />
-                    Variável
+                    Adicionar variável
                   </Button>
                 </div>
               </div>
@@ -534,7 +581,22 @@ export function ManualTemplateBuilder({
             </div>
 
             <div className="mt-2 rounded-xl border border-white/10 bg-zinc-950">
-              <div className="flex items-center gap-1 px-2 py-2 border-b border-white/10">
+              <div className="p-2">
+                <Textarea
+                  ref={bodyRef as any}
+                  value={bodyText}
+                  onChange={(e) => {
+                    const text = e.target.value
+                    const example = defaultBodyExamples(text)
+                    update({ body: { ...(spec.body || {}), text, example: example ? { body_text: example } : undefined } })
+                  }}
+                  className="bg-transparent border-none text-white min-h-36 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  placeholder="Digite o texto do corpo (obrigatório)"
+                  maxLength={1024}
+                />
+              </div>
+
+              <div className="flex items-center gap-1 px-2 py-2 border-t border-white/10">
                 <Button type="button" variant="ghost" onClick={() => applyBodyFormat('bold')} className="h-8 px-2 text-gray-200 hover:bg-white/5">
                   <Bold className="w-4 h-4" />
                 </Button>
@@ -559,21 +621,6 @@ export function ManualTemplateBuilder({
                   <Plus className="w-4 h-4" />
                   Adicionar variável
                 </Button>
-              </div>
-
-              <div className="p-2">
-                <Textarea
-                  ref={bodyRef as any}
-                  value={bodyText}
-                  onChange={(e) => {
-                    const text = e.target.value
-                    const example = defaultBodyExamples(text)
-                    update({ body: { ...(spec.body || {}), text, example: example ? { body_text: example } : undefined } })
-                  }}
-                  className="bg-transparent border-none text-white min-h-32 focus-visible:ring-0 focus-visible:ring-offset-0"
-                  placeholder="Digite o texto do corpo (obrigatório)"
-                  maxLength={1024}
-                />
               </div>
             </div>
 
@@ -602,7 +649,7 @@ export function ManualTemplateBuilder({
               </div>
 
               {spec.footer ? (
-                <div className="flex items-center gap-2">
+                <div className="space-y-2">
                   <Input
                     ref={footerRef as any}
                     value={footerText}
@@ -611,15 +658,17 @@ export function ManualTemplateBuilder({
                     placeholder="Inserir texto"
                     maxLength={60}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => addVariable('footer')}
-                    className="border-white/10 bg-zinc-900 hover:bg-white/5"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Variável
-                  </Button>
+                  <div className="flex items-center justify-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => addVariable('footer')}
+                      className="h-8 px-2 text-gray-300 hover:bg-white/5"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Adicionar variável
+                    </Button>
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -950,111 +999,130 @@ export function ManualTemplateBuilder({
           ) : null}
         </div>
 
-        <div className={cn('glass-panel rounded-xl p-5 space-y-4', spec.category !== 'MARKETING' ? 'opacity-70' : '')}>
-          <div className="text-sm font-semibold text-white">Limited Time Offer (Marketing)</div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              className="border-white/10 bg-zinc-900 hover:bg-white/5"
-              onClick={() => update({ limited_time_offer: spec.limited_time_offer ? null : { text: '', has_expiration: true } })}
-              disabled={spec.category !== 'MARKETING'}
-            >
-              {spec.limited_time_offer ? 'Remover' : 'Adicionar'}
-            </Button>
-          </div>
-          {spec.limited_time_offer ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-300">Texto (máx 16)</label>
-                <Input
-                  value={spec.limited_time_offer.text || ''}
-                  onChange={(e) => update({ limited_time_offer: { ...(spec.limited_time_offer || {}), text: e.target.value } })}
-                  className="bg-zinc-900 border-white/10 text-white"
-                />
+        <div className="glass-panel rounded-xl p-4">
+          <details>
+            <summary className="cursor-pointer list-none select-none flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-white">Avançado</div>
+                <div className="text-xs text-gray-400">Opções menos comuns (LTO, Auth e Carousel).</div>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-300">has_expiration</label>
-                <Select
-                  value={String(!!spec.limited_time_offer.has_expiration)}
-                  onValueChange={(v) => update({ limited_time_offer: { ...(spec.limited_time_offer || {}), has_expiration: v === 'true' } })}
-                >
-                  <SelectTrigger className="w-full bg-zinc-900 border-white/10 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">true</SelectItem>
-                    <SelectItem value="false">false</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="text-xs text-gray-500">Abrir</div>
+            </summary>
+
+            <div className="mt-4 space-y-4">
+              {spec.category === 'MARKETING' ? (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+                  <div className="text-sm font-semibold text-white">Limited Time Offer</div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      className="border-white/10 bg-zinc-900 hover:bg-white/5"
+                      onClick={() => update({ limited_time_offer: spec.limited_time_offer ? null : { text: '', has_expiration: true } })}
+                    >
+                      {spec.limited_time_offer ? 'Remover' : 'Adicionar'}
+                    </Button>
+                  </div>
+                  {spec.limited_time_offer ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-gray-300">Texto (máx 16)</label>
+                        <Input
+                          value={spec.limited_time_offer.text || ''}
+                          onChange={(e) => update({ limited_time_offer: { ...(spec.limited_time_offer || {}), text: e.target.value } })}
+                          className="bg-zinc-900 border-white/10 text-white"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-gray-300">has_expiration</label>
+                        <Select
+                          value={String(!!spec.limited_time_offer.has_expiration)}
+                          onValueChange={(v) => update({ limited_time_offer: { ...(spec.limited_time_offer || {}), has_expiration: v === 'true' } })}
+                        >
+                          <SelectTrigger className="w-full bg-zinc-900 border-white/10 text-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="true">true</SelectItem>
+                            <SelectItem value="false">false</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {spec.category === 'AUTHENTICATION' ? (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+                  <div className="text-sm font-semibold text-white">Autenticação (Auth)</div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-gray-300">message_send_ttl_seconds</label>
+                      <Input
+                        value={spec.message_send_ttl_seconds ?? ''}
+                        onChange={(e) => update({ message_send_ttl_seconds: e.target.value ? Number(e.target.value) : undefined })}
+                        className="bg-zinc-900 border-white/10 text-white"
+                        placeholder="ex: 300"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-gray-300">add_security_recommendation</label>
+                      <Select
+                        value={String(!!spec.add_security_recommendation)}
+                        onValueChange={(v) => update({ add_security_recommendation: v === 'true' })}
+                      >
+                        <SelectTrigger className="w-full bg-zinc-900 border-white/10 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="true">true</SelectItem>
+                          <SelectItem value="false">false</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-gray-300">code_expiration_minutes</label>
+                      <Input
+                        value={spec.code_expiration_minutes ?? ''}
+                        onChange={(e) => update({ code_expiration_minutes: e.target.value ? Number(e.target.value) : undefined })}
+                        className="bg-zinc-900 border-white/10 text-white"
+                        placeholder="ex: 10"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {spec.category !== 'MARKETING' && spec.category !== 'AUTHENTICATION' ? (
+                <div className="text-xs text-gray-500">
+                  Sem opções avançadas específicas para esta categoria.
+                </div>
+              ) : null}
+
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+                <div className="text-sm font-semibold text-white">Carousel</div>
+                <div className="text-xs text-gray-400">
+                  Editor visual completo do Carousel vem depois. Por enquanto, você pode colar o JSON.
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-300">JSON (carousel)</label>
+                  <Textarea
+                    value={spec.carousel ? JSON.stringify(spec.carousel, null, 2) : ''}
+                    onChange={(e) => {
+                      try {
+                        const val = e.target.value.trim()
+                        update({ carousel: val ? JSON.parse(val) : null })
+                      } catch {
+                        // não travar digitando
+                      }
+                    }}
+                    className="bg-zinc-900 border-white/10 text-white min-h-28 font-mono text-xs"
+                    placeholder="Cole aqui um JSON de carousel (opcional)"
+                  />
+                </div>
               </div>
             </div>
-          ) : null}
-        </div>
-
-        <div className={cn('glass-panel rounded-xl p-5 space-y-4', spec.category !== 'AUTHENTICATION' ? 'opacity-70' : '')}>
-          <div className="text-sm font-semibold text-white">Autenticação (Auth)</div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-300">message_send_ttl_seconds</label>
-              <Input
-                value={spec.message_send_ttl_seconds ?? ''}
-                onChange={(e) => update({ message_send_ttl_seconds: e.target.value ? Number(e.target.value) : undefined })}
-                className="bg-zinc-900 border-white/10 text-white"
-                placeholder="ex: 300"
-                disabled={spec.category !== 'AUTHENTICATION'}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-300">add_security_recommendation</label>
-              <Select
-                value={String(!!spec.add_security_recommendation)}
-                onValueChange={(v) => update({ add_security_recommendation: v === 'true' })}
-                disabled={spec.category !== 'AUTHENTICATION'}
-              >
-                <SelectTrigger className="w-full bg-zinc-900 border-white/10 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">true</SelectItem>
-                  <SelectItem value="false">false</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-300">code_expiration_minutes</label>
-              <Input
-                value={spec.code_expiration_minutes ?? ''}
-                onChange={(e) => update({ code_expiration_minutes: e.target.value ? Number(e.target.value) : undefined })}
-                className="bg-zinc-900 border-white/10 text-white"
-                placeholder="ex: 10"
-                disabled={spec.category !== 'AUTHENTICATION'}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* CAROUSEL (suporte inicial via JSON) */}
-        <div className="glass-panel rounded-xl p-5 space-y-3">
-          <div className="text-sm font-semibold text-white">Carousel</div>
-          <div className="text-xs text-gray-500">
-            Suporte completo ao Carousel exige editor de cards (2-10) + mídia (header_handle). Por enquanto, habilitei como edição avançada.
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-300">JSON (carousel)</label>
-            <Textarea
-              value={spec.carousel ? JSON.stringify(spec.carousel, null, 2) : ''}
-              onChange={(e) => {
-                try {
-                  const val = e.target.value.trim()
-                  update({ carousel: val ? JSON.parse(val) : null })
-                } catch {
-                  // não travar digitando
-                }
-              }}
-              className="bg-zinc-900 border-white/10 text-white min-h-28 font-mono text-xs"
-              placeholder="Cole aqui um JSON de carousel (opcional)"
-            />
-          </div>
+          </details>
         </div>
       </div>
 
@@ -1062,19 +1130,28 @@ export function ManualTemplateBuilder({
         <Preview spec={spec} />
 
         <div className="glass-panel rounded-xl p-4">
-          <button
-            type="button"
-            onClick={() => setShowDebug((v) => !v)}
-            className="w-full flex items-center justify-between text-left"
-          >
-            <div className="text-sm font-semibold text-white">Debug</div>
-            <div className="text-xs text-gray-400">{showDebug ? 'Ocultar' : 'Ver JSON'}</div>
-          </button>
-          {showDebug ? (
-            <pre className="mt-3 text-xs text-gray-300 font-mono whitespace-pre-wrap wrap-break-word">
-              {JSON.stringify(spec, null, 2)}
-            </pre>
-          ) : null}
+          <details>
+            <summary className="cursor-pointer list-none select-none flex items-center justify-between">
+              <div className="text-sm font-semibold text-white">Avançado</div>
+              <div className="text-xs text-gray-400">Abrir</div>
+            </summary>
+
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => setShowDebug((v) => !v)}
+                className="w-full flex items-center justify-between text-left"
+              >
+                <div className="text-sm font-semibold text-white">Debug</div>
+                <div className="text-xs text-gray-400">{showDebug ? 'Ocultar' : 'Ver JSON'}</div>
+              </button>
+              {showDebug ? (
+                <pre className="mt-3 text-xs text-gray-300 font-mono whitespace-pre-wrap wrap-break-word">
+                  {JSON.stringify(spec, null, 2)}
+                </pre>
+              ) : null}
+            </div>
+          </details>
         </div>
       </div>
     </div>

@@ -493,6 +493,12 @@ export const CampaignDetailsView: React.FC<CampaignDetailsViewProps> = ({
           </span>
         </div>
 
+        {metrics?.source === 'campaigns_fallback' && (metrics as any)?.hint && (
+          <div className="mt-3 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+            {(metrics as any).hint}
+          </div>
+        )}
+
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
           <DetailCard
             title="Throughput"
