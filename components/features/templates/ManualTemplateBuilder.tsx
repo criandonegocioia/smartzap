@@ -4,7 +4,19 @@ import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Code, Bold, Italic, Strikethrough, Plus, ChevronDown, Play } from 'lucide-react'
+import {
+  Code,
+  Bold,
+  Italic,
+  Strikethrough,
+  Plus,
+  ChevronDown,
+  Play,
+  ExternalLink,
+  CornerDownLeft,
+  GripVertical,
+  X,
+} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,6 +62,30 @@ function normalizeButtons(input: any[]): any[] {
 
 function countButtonsByType(buttons: any[], type: ButtonType): number {
   return (Array.isArray(buttons) ? buttons : []).filter((b) => b?.type === type).length
+}
+
+function countChars(value: unknown): number {
+  return String(value ?? '').length
+}
+
+function clampText(value: string, max: number): string {
+  if (value.length <= max) return value
+  return value.slice(0, max)
+}
+
+function splitPhone(phone: string): { country: string; number: string } {
+  const raw = String(phone || '').replace(/\s+/g, '')
+  const digits = raw.replace(/\D+/g, '')
+  if (!digits) return { country: '55', number: '' }
+  if (digits.startsWith('55')) return { country: '55', number: digits.slice(2) }
+  if (digits.startsWith('1')) return { country: '1', number: digits.slice(1) }
+  return { country: '55', number: digits }
+}
+
+function joinPhone(country: string, number: string): string {
+  const c = String(country || '').replace(/\D+/g, '')
+  const n = String(number || '').replace(/\D+/g, '')
+  return `${c}${n}`
 }
 
 function newButtonForType(type: ButtonType): any {
@@ -130,6 +166,13 @@ function Preview({ spec }: { spec: Spec }) {
   const footerText = spec.footer?.text || ''
   const buttons: any[] = Array.isArray(spec.buttons) ? spec.buttons : []
 
+  const prettyButtonLabel = (b: any): string => {
+    const t = String(b?.type || '')
+    if (t === 'COPY_CODE') return b?.text || 'Copiar código'
+    if (t === 'QUICK_REPLY') return b?.text || 'Quick Reply'
+    return b?.text || t
+  }
+
   const headerLabel = (() => {
     if (!header) return null
     if (header.format === 'TEXT') return header.text || ''
@@ -165,7 +208,8 @@ function Preview({ spec }: { spec: Spec }) {
 
             {/* conversa */}
             <div className="p-3">
-              <div className="max-w-[320px] rounded-xl bg-white text-zinc-900 shadow-sm px-3 py-2">
+              <div className="max-w-90 rounded-xl bg-white text-zinc-900 shadow-sm overflow-hidden">
+                <div className="px-3 py-2">
                 {headerLabel ? (
                   <div className="text-[13px] font-semibold leading-snug">
                     {headerLabel}
@@ -185,29 +229,29 @@ function Preview({ spec }: { spec: Spec }) {
                 <div className="mt-1 flex items-center justify-end text-[10px] text-zinc-400">
                   16:34
                 </div>
-              </div>
-
-              {buttons.length > 0 ? (
-                <div className="mt-3 max-w-[320px] overflow-hidden rounded-xl border border-black/10 bg-white">
-                  {buttons.map((b, idx) => (
-                    <div
-                      key={idx}
-                      className={cn(
-                        'px-3 py-2 text-center text-[12px] font-medium text-blue-600',
-                        idx > 0 ? 'border-t border-black/10' : ''
-                      )}
-                    >
-                      {b.text || (b.type === 'COPY_CODE' ? 'Copiar código' : b.type)}
-                    </div>
-                  ))}
                 </div>
-              ) : null}
-            </div>
 
-            <div className="px-3 pb-3">
-              <button type="button" className="w-full text-xs text-blue-600 hover:text-blue-500">
-                Visualizar
-              </button>
+                {buttons.length > 0 ? (
+                  <div className="border-t border-zinc-200">
+                    {buttons.map((b, idx) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          'px-3 py-3 text-center text-[13px] font-medium text-blue-600 flex items-center justify-center gap-2',
+                          idx > 0 ? 'border-t border-zinc-200' : ''
+                        )}
+                      >
+                        {String(b?.type || '') === 'URL' ? (
+                          <ExternalLink className="w-4 h-4" />
+                        ) : String(b?.type || '') === 'QUICK_REPLY' ? (
+                          <CornerDownLeft className="w-4 h-4" />
+                        ) : null}
+                        <span>{prettyButtonLabel(b)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
@@ -272,6 +316,7 @@ export function ManualTemplateBuilder({
   const buttons: any[] = Array.isArray(spec.buttons) ? spec.buttons : []
 
   const maxButtons = 10
+  const maxButtonText = 25
   const counts = {
     total: buttons.length,
     url: countButtonsByType(buttons, 'URL'),
@@ -780,215 +825,363 @@ export function ManualTemplateBuilder({
           {buttons.length === 0 ? (
             <div className="text-sm text-gray-500">Nenhum botão</div>
           ) : (
-            <div className="space-y-3">
-              {buttons.map((b, idx) => (
-                <div key={idx} className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-medium text-gray-200">Botão {idx + 1}</div>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => updateButtons(buttons.filter((_, i) => i !== idx))}
-                    >
-                      Remover
-                    </Button>
-                  </div>
+            <div className="space-y-5">
+              {/* Resposta rápida */}
+              {(() => {
+                const rows = buttons
+                  .map((b, idx) => ({ b, idx }))
+                  .filter(({ b }) => b?.type === 'QUICK_REPLY')
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-medium text-gray-300">Tipo</label>
-                      <Select
-                        value={b.type}
-                        onValueChange={(v) => {
-                          const t = v as ButtonType
-                          const next = [...buttons]
-                          next[idx] = { type: t }
-                          if (t === 'QUICK_REPLY' || t === 'URL' || t === 'PHONE_NUMBER' || t === 'FLOW' || t === 'CATALOG' || t === 'MPM' || t === 'VOICE_CALL') {
-                            next[idx].text = ''
+                if (rows.length === 0) return null
+
+                return (
+                  <div className="space-y-3">
+                    <div className="text-xs text-gray-400">Resposta rápida <span className="text-gray-500">• Opcional</span></div>
+
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                      <div className="grid grid-cols-[18px_minmax(0,1fr)_40px] gap-3 items-center">
+                        <div />
+                        <div className="text-xs font-medium text-gray-300">Texto do botão</div>
+                        <div />
+                      </div>
+
+                      <div className="mt-3 space-y-3">
+                        {rows.map(({ b, idx }) => {
+                          const text = String(b?.text || '')
+                          return (
+                            <div key={idx} className="grid grid-cols-[18px_minmax(0,1fr)_40px] gap-3 items-center">
+                              <GripVertical className="w-4 h-4 text-gray-500" />
+
+                              <div className="relative">
+                                <Input
+                                  value={text}
+                                  onChange={(e) => {
+                                    const next = [...buttons]
+                                    next[idx] = { ...b, text: clampText(e.target.value, maxButtonText) }
+                                    updateButtons(next)
+                                  }}
+                                  className="h-11 bg-zinc-900 border-white/10 text-white pr-16"
+                                  maxLength={maxButtonText}
+                                  placeholder="Quick Reply"
+                                />
+                                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                                  {countChars(text)}/{maxButtonText}
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => updateButtons(buttons.filter((_, i) => i !== idx))}
+                                className="h-9 w-9 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-white hover:bg-white/5"
+                                title="Remover"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Chamada para ação */}
+              {(() => {
+                const rows = buttons
+                  .map((b, idx) => ({ b, idx }))
+                  .filter(({ b }) => b?.type !== 'QUICK_REPLY')
+
+                if (rows.length === 0) return null
+
+                return (
+                  <div className="space-y-3">
+                    <div className="text-xs text-gray-400">Chamada para ação <span className="text-gray-500">• Opcional</span></div>
+
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-4">
+                      {rows.map(({ b, idx }) => {
+                        const type = b?.type as ButtonType
+                        const buttonText = String(b?.text || '')
+
+                        const headerRow = (
+                          <div className="grid grid-cols-[18px_minmax(0,1fr)] gap-4">
+                            <div className="pt-6">
+                              <GripVertical className="w-4 h-4 text-gray-500" />
+                            </div>
+
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-1">
+                                  <div className="text-xs font-medium text-gray-300">Tipo de ação</div>
+                                  <Select
+                                    value={type}
+                                    onValueChange={(v) => {
+                                      const t = v as ButtonType
+                                      const next = [...buttons]
+                                      next[idx] = { type: t }
+                                      if (t === 'QUICK_REPLY' || t === 'URL' || t === 'PHONE_NUMBER' || t === 'FLOW' || t === 'CATALOG' || t === 'MPM' || t === 'VOICE_CALL') {
+                                        next[idx].text = ''
+                                      }
+                                      if (t === 'URL') next[idx].url = 'https://'
+                                      if (t === 'PHONE_NUMBER') next[idx].phone_number = ''
+                                      if (t === 'COPY_CODE') next[idx].example = 'CODE123'
+                                      if (t === 'OTP') next[idx].otp_type = 'COPY_CODE'
+                                      if (t === 'FLOW') next[idx].flow_id = ''
+                                      updateButtons(next)
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-11 w-full bg-zinc-900 border-white/10 text-white">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="URL">Acessar o site</SelectItem>
+                                      <SelectItem value="PHONE_NUMBER">Ligar</SelectItem>
+                                      <SelectItem value="COPY_CODE">Copiar código da oferta</SelectItem>
+                                      <SelectItem value="FLOW">Concluir flow</SelectItem>
+                                      <SelectItem value="VOICE_CALL">Ligar no WhatsApp</SelectItem>
+                                      <SelectItem value="CATALOG">Catálogo</SelectItem>
+                                      <SelectItem value="MPM">MPM</SelectItem>
+                                      <SelectItem value="OTP">OTP</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <div className="text-xs font-medium text-gray-300">Texto do botão</div>
+                                  <div className="relative">
+                                    <Input
+                                      value={buttonText}
+                                      onChange={(e) => {
+                                        const next = [...buttons]
+                                        next[idx] = { ...b, text: clampText(e.target.value, maxButtonText) }
+                                        updateButtons(next)
+                                      }}
+                                      className="h-11 bg-zinc-900 border-white/10 text-white pr-16"
+                                      maxLength={maxButtonText}
+                                      placeholder={type === 'URL' ? 'Visualizar' : 'Texto'}
+                                    />
+                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                                      {countChars(buttonText)}/{maxButtonText}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+
+                        const bodyRow = (() => {
+                          if (type === 'URL') {
+                            const url = String(b?.url || '')
+                            const isDynamic = /\{\{\s*\d+\s*\}\}/.test(url)
+                            const example = (Array.isArray(b?.example) ? b.example[0] : b?.example) || ''
+
+                            return (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-1">
+                                  <div className="text-xs font-medium text-gray-300">Tipo de URL</div>
+                                  <Select
+                                    value={isDynamic ? 'dynamic' : 'static'}
+                                    onValueChange={(v) => {
+                                      const next = [...buttons]
+                                      const nextUrl = v === 'dynamic'
+                                        ? (url.includes('{{') ? url : `${url.replace(/\/$/, '')}/{{1}}`)
+                                        : url.replace(/\{\{\s*\d+\s*\}\}/g, '').replace(/\/+$/, '')
+                                      next[idx] = { ...b, url: nextUrl }
+                                      if (v !== 'dynamic') {
+                                        delete next[idx].example
+                                      } else {
+                                        next[idx].example = Array.isArray(b?.example) ? b.example : [example || 'Exemplo 1']
+                                      }
+                                      updateButtons(next)
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-11 w-full bg-zinc-900 border-white/10 text-white">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="static">Estático</SelectItem>
+                                      <SelectItem value="dynamic">Dinâmico</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <div className="text-xs font-medium text-gray-300">URL do site</div>
+                                  <Input
+                                    value={url}
+                                    onChange={(e) => {
+                                      const next = [...buttons]
+                                      next[idx] = { ...b, url: e.target.value }
+                                      updateButtons(next)
+                                    }}
+                                    className="h-11 bg-zinc-900 border-white/10 text-white"
+                                    placeholder="https://www.exemplo.com"
+                                  />
+                                </div>
+
+                                {isDynamic ? (
+                                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-1">
+                                      <div className="text-xs font-medium text-gray-300">Exemplo</div>
+                                      <Input
+                                        value={example}
+                                        onChange={(e) => {
+                                          const next = [...buttons]
+                                          next[idx] = { ...b, example: [e.target.value] }
+                                          updateButtons(next)
+                                        }}
+                                        className="h-11 bg-zinc-900 border-white/10 text-white"
+                                        placeholder="Exemplo 1"
+                                      />
+                                    </div>
+                                    <div className="text-xs text-gray-500 self-end">
+                                      Use <span className="font-mono">{'{{1}}'}</span> para URL dinâmica.
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </div>
+                            )
                           }
-                          if (t === 'URL') next[idx].url = 'https://'
-                          if (t === 'PHONE_NUMBER') next[idx].phone_number = ''
-                          if (t === 'COPY_CODE') next[idx].example = 'CODE123'
-                          if (t === 'OTP') next[idx].otp_type = 'COPY_CODE'
-                          if (t === 'FLOW') next[idx].flow_id = ''
-                          updateButtons(next)
-                        }}
-                      >
-                        <SelectTrigger className="w-full bg-zinc-900 border-white/10 text-white">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="QUICK_REPLY">QUICK_REPLY</SelectItem>
-                          <SelectItem value="URL">URL</SelectItem>
-                          <SelectItem value="PHONE_NUMBER">PHONE_NUMBER</SelectItem>
-                          <SelectItem value="COPY_CODE">COPY_CODE</SelectItem>
-                          <SelectItem value="OTP">OTP</SelectItem>
-                          <SelectItem value="FLOW">FLOW</SelectItem>
-                          <SelectItem value="CATALOG">CATALOG</SelectItem>
-                          <SelectItem value="MPM">MPM</SelectItem>
-                          <SelectItem value="VOICE_CALL">VOICE_CALL</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
 
-                    {b.type !== 'COPY_CODE' && b.type !== 'OTP' ? (
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-300">Texto</label>
-                        <Input
-                          value={b.text || ''}
-                          onChange={(e) => {
-                            const next = [...buttons]
-                            next[idx] = { ...b, text: e.target.value }
-                            updateButtons(next)
-                          }}
-                          className="bg-zinc-900 border-white/10 text-white"
-                        />
+                          if (type === 'PHONE_NUMBER') {
+                            const { country, number } = splitPhone(String(b?.phone_number || ''))
+                            return (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-1">
+                                  <div className="text-xs font-medium text-gray-300">País</div>
+                                  <Select
+                                    value={country}
+                                    onValueChange={(v) => {
+                                      const next = [...buttons]
+                                      next[idx] = { ...b, phone_number: joinPhone(v, number) }
+                                      updateButtons(next)
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-11 w-full bg-zinc-900 border-white/10 text-white">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="55">BR +55</SelectItem>
+                                      <SelectItem value="1">US +1</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <div className="text-xs font-medium text-gray-300">Telefone</div>
+                                  <Input
+                                    value={number}
+                                    onChange={(e) => {
+                                      const next = [...buttons]
+                                      next[idx] = { ...b, phone_number: joinPhone(country, e.target.value) }
+                                      updateButtons(next)
+                                    }}
+                                    className="h-11 bg-zinc-900 border-white/10 text-white"
+                                    placeholder="(11) 99999-7777"
+                                  />
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          if (type === 'COPY_CODE') {
+                            const code = String((Array.isArray(b?.example) ? b.example[0] : b?.example) || '')
+                            return (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                                <div className="space-y-1">
+                                  <div className="text-xs font-medium text-gray-300">Código da oferta</div>
+                                  <Input
+                                    value={code}
+                                    onChange={(e) => {
+                                      const next = [...buttons]
+                                      next[idx] = { ...b, example: clampText(e.target.value, 20) }
+                                      updateButtons(next)
+                                    }}
+                                    className="h-11 bg-zinc-900 border-white/10 text-white"
+                                    placeholder="1234"
+                                  />
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  O código é exibido ao usuário e pode ser copiado.
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          if (type === 'FLOW') {
+                            return (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                                <div className="space-y-1">
+                                  <div className="text-xs font-medium text-gray-300">flow_id</div>
+                                  <Input
+                                    value={b.flow_id || ''}
+                                    onChange={(e) => {
+                                      const next = [...buttons]
+                                      next[idx] = { ...b, flow_id: e.target.value }
+                                      updateButtons(next)
+                                    }}
+                                    className="h-11 bg-zinc-900 border-white/10 text-white"
+                                    placeholder="Usar existente"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="text-xs font-medium text-gray-300">flow_action</div>
+                                  <Select
+                                    value={b.flow_action || 'navigate'}
+                                    onValueChange={(v) => {
+                                      const next = [...buttons]
+                                      next[idx] = { ...b, flow_action: v }
+                                      updateButtons(next)
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-11 w-full bg-zinc-900 border-white/10 text-white">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="navigate">navigate</SelectItem>
+                                      <SelectItem value="data_exchange">data_exchange</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          return null
+                        })()
+
+                        return (
+                          <div key={idx} className="relative rounded-xl border border-white/10 bg-zinc-950/20 p-5">
+                            <button
+                              type="button"
+                              onClick={() => updateButtons(buttons.filter((_, i) => i !== idx))}
+                              className="absolute right-4 top-4 h-9 w-9 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-white hover:bg-white/5"
+                              title="Remover"
+                              aria-label="Remover"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+
+                            <div className="space-y-4">
+                              {headerRow}
+                              {bodyRow ? (
+                                <div className="pl-8.5">
+                                  {bodyRow}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        )
+                      })}
+
+                      <div className="text-xs text-gray-500">
+                        Regras: URL máx 2, Ligar máx 1, Copiar código máx 1; Respostas rápidas ficam agrupadas.
                       </div>
-                    ) : null}
+                    </div>
                   </div>
-
-                  {b.type === 'URL' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-300">URL</label>
-                        <Input
-                          value={b.url || ''}
-                          onChange={(e) => {
-                            const next = [...buttons]
-                            next[idx] = { ...b, url: e.target.value }
-                            updateButtons(next)
-                          }}
-                          className="bg-zinc-900 border-white/10 text-white"
-                          placeholder="https://site.com/{{1}}"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-300">Exemplo (para URL dinâmica)</label>
-                        <Input
-                          value={(Array.isArray(b.example) ? b.example[0] : b.example) || ''}
-                          onChange={(e) => {
-                            const next = [...buttons]
-                            next[idx] = { ...b, example: [e.target.value] }
-                            updateButtons(next)
-                          }}
-                          className="bg-zinc-900 border-white/10 text-white"
-                          placeholder="ex: 123"
-                        />
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {b.type === 'PHONE_NUMBER' ? (
-                    <div className="space-y-2">
-                      <label className="text-xs font-medium text-gray-300">Telefone</label>
-                      <Input
-                        value={b.phone_number || ''}
-                        onChange={(e) => {
-                          const next = [...buttons]
-                          next[idx] = { ...b, phone_number: e.target.value }
-                          updateButtons(next)
-                        }}
-                        className="bg-zinc-900 border-white/10 text-white"
-                        placeholder="5511999999999"
-                      />
-                    </div>
-                  ) : null}
-
-                  {b.type === 'COPY_CODE' ? (
-                    <div className="space-y-2">
-                      <label className="text-xs font-medium text-gray-300">Exemplo</label>
-                      <Input
-                        value={(Array.isArray(b.example) ? b.example[0] : b.example) || ''}
-                        onChange={(e) => {
-                          const next = [...buttons]
-                          next[idx] = { ...b, example: e.target.value }
-                          updateButtons(next)
-                        }}
-                        className="bg-zinc-900 border-white/10 text-white"
-                        placeholder="CUPOM10"
-                      />
-                    </div>
-                  ) : null}
-
-                  {b.type === 'OTP' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-300">otp_type</label>
-                        <Select
-                          value={b.otp_type || 'COPY_CODE'}
-                          onValueChange={(v) => {
-                            const next = [...buttons]
-                            next[idx] = { ...b, otp_type: v }
-                            updateButtons(next)
-                          }}
-                        >
-                          <SelectTrigger className="w-full bg-zinc-900 border-white/10 text-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="COPY_CODE">COPY_CODE</SelectItem>
-                            <SelectItem value="ONE_TAP">ONE_TAP</SelectItem>
-                            <SelectItem value="ZERO_TAP">ZERO_TAP</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-300">Texto (opcional)</label>
-                        <Input
-                          value={b.text || ''}
-                          onChange={(e) => {
-                            const next = [...buttons]
-                            next[idx] = { ...b, text: e.target.value }
-                            updateButtons(next)
-                          }}
-                          className="bg-zinc-900 border-white/10 text-white"
-                          placeholder="Copiar código"
-                        />
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {b.type === 'FLOW' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-300">flow_id</label>
-                        <Input
-                          value={b.flow_id || ''}
-                          onChange={(e) => {
-                            const next = [...buttons]
-                            next[idx] = { ...b, flow_id: e.target.value }
-                            updateButtons(next)
-                          }}
-                          className="bg-zinc-900 border-white/10 text-white"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-300">flow_action (opcional)</label>
-                        <Select
-                          value={b.flow_action || 'navigate'}
-                          onValueChange={(v) => {
-                            const next = [...buttons]
-                            next[idx] = { ...b, flow_action: v }
-                            updateButtons(next)
-                          }}
-                        >
-                          <SelectTrigger className="w-full bg-zinc-900 border-white/10 text-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="navigate">navigate</SelectItem>
-                            <SelectItem value="data_exchange">data_exchange</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="text-xs text-gray-500">
-                    Regras: URL máx 2, PHONE_NUMBER máx 1, COPY_CODE máx 1; QUICK_REPLY devem ficar juntos.
-                  </div>
-                </div>
-              ))}
+                )
+              })()}
             </div>
           )}
 

@@ -1,12 +1,14 @@
 import { serve } from '@upstash/workflow/nextjs'
 import { campaignDb, templateDb } from '@/lib/supabase-db'
 import { supabase } from '@/lib/supabase'
-import { CampaignStatus } from '@/types'
-import { getUserFriendlyMessage } from '@/lib/whatsapp-errors'
+import { CampaignStatus, ContactStatus } from '@/types'
+import { getUserFriendlyMessageForMetaError, normalizeMetaErrorTextForStorage } from '@/lib/whatsapp-errors'
 import { buildMetaTemplatePayload, precheckContactForTemplate } from '@/lib/whatsapp/template-contract'
 import { emitWorkflowTrace, maskPhone, timePhase } from '@/lib/workflow-trace'
 import { createRateLimiter } from '@/lib/rate-limiter'
 import { recordStableBatch, recordThroughputExceeded, getAdaptiveThrottleConfig, getAdaptiveThrottleState } from '@/lib/whatsapp-adaptive-throttle'
+import { normalizePhoneNumber } from '@/lib/phone-formatter'
+import { getActiveSuppressionsByPhone } from '@/lib/phone-suppressions'
 import { createHash } from 'crypto'
 
 function hashConfig(input: unknown): string {
@@ -91,7 +93,19 @@ async function updateContactStatus(
   campaignId: string,
   identifiers: { contactId: string; phone: string },
   status: 'sent' | 'failed' | 'skipped',
-  opts?: { messageId?: string; error?: string; skipCode?: string; skipReason?: string; traceId?: string }
+  opts?: {
+    messageId?: string
+    error?: string
+    errorCode?: number
+    errorTitle?: string
+    errorDetails?: string
+    errorFbtraceId?: string
+    errorSubcode?: number
+    errorHref?: string
+    skipCode?: string
+    skipReason?: string
+    traceId?: string
+  }
 ) {
   try {
     const now = new Date().toISOString()
@@ -116,6 +130,19 @@ async function updateContactStatus(
     if (status === 'failed') {
       update.failed_at = now
       update.error = opts?.error || null
+
+      // Colunas próprias (quando temos contexto estruturado)
+      if (typeof opts?.errorCode === 'number') update.failure_code = opts.errorCode
+      if (typeof opts?.errorTitle === 'string') update.failure_title = normalizeMetaErrorTextForStorage(opts.errorTitle, 200)
+      if (typeof opts?.errorDetails === 'string') update.failure_details = normalizeMetaErrorTextForStorage(opts.errorDetails, 800)
+      if (typeof opts?.errorFbtraceId === 'string') update.failure_fbtrace_id = normalizeMetaErrorTextForStorage(opts.errorFbtraceId, 200)
+      if (typeof opts?.errorSubcode === 'number') update.failure_subcode = opts.errorSubcode
+      if (typeof opts?.errorHref === 'string') update.failure_href = normalizeMetaErrorTextForStorage(opts.errorHref, 400)
+
+      // failure_reason é usado pela UI e por queries; mantemos alinhado com `error`.
+      if (typeof opts?.error === 'string' && opts.error.trim()) {
+        update.failure_reason = opts.error
+      }
     }
 
     if (status === 'skipped') {
@@ -296,6 +323,40 @@ export const { POST } = serve<CampaignWorkflowInput>(
             },
           })
 
+          // =====================================================================
+          // Checagens globais por batch (opt-out + supressões)
+          // =====================================================================
+          const optOutContactIds = new Set<string>()
+          try {
+            const ids = Array.from(new Set(batch.map(c => String(c.contactId || '').trim()).filter(Boolean)))
+            if (ids.length > 0) {
+              const { data: rows, error } = await supabase
+                .from('contacts')
+                .select('id, status')
+                .in('id', ids)
+
+              if (error) throw error
+              for (const r of (rows || []) as any[]) {
+                if (String(r?.status) === ContactStatus.OPT_OUT) {
+                  optOutContactIds.add(String(r.id))
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[Workflow] Falha ao carregar contacts.status (best-effort):', e)
+          }
+
+          let suppressionsByPhone = new Map<string, { phone: string; reason: string | null; source: string | null }>()
+          try {
+            const phones = Array.from(new Set(batch.map(c => normalizePhoneNumber(String(c.phone || '').trim())).filter(Boolean)))
+            const active = await getActiveSuppressionsByPhone(phones)
+            suppressionsByPhone = new Map(
+              Array.from(active.entries()).map(([phone, row]) => [phone, { phone, reason: row.reason, source: row.source }])
+            )
+          } catch (e) {
+            console.warn('[Workflow] Falha ao carregar phone_suppressions (best-effort):', e)
+          }
+
           const processContact = async (contact: Contact) => {
             try {
               const phoneMasked = maskPhone(contact.phone)
@@ -339,6 +400,59 @@ export const { POST } = serve<CampaignWorkflowInput>(
               })
               skippedCount++
               console.log(`⏭️ Skipped ${contact.phone}: ${precheck.reason}`)
+              return
+            }
+
+            // Opt-out e supressão global (defensivo: também roda aqui, mesmo que o dispatch tenha filtrado)
+            if (optOutContactIds.has(String(contact.contactId))) {
+              const t0 = Date.now()
+              await updateContactStatus(campaignId, { contactId: contact.contactId as string, phone: contact.phone }, 'skipped', {
+                skipCode: 'OPT_OUT',
+                skipReason: 'Contato opt-out (não quer receber mensagens).',
+                traceId,
+              })
+              dbTimeMs += Date.now() - t0
+
+              await emitWorkflowTrace({
+                traceId,
+                campaignId,
+                step,
+                batchIndex,
+                contactId: contact.contactId,
+                phoneMasked,
+                phase: 'optout_skip',
+                ok: true,
+              })
+
+              skippedCount++
+              console.log(`⏭️ Skipped (opt-out) ${contact.phone}`)
+              return
+            }
+
+            const suppression = suppressionsByPhone.get(precheck.normalizedPhone)
+            if (suppression) {
+              const t0 = Date.now()
+              await updateContactStatus(campaignId, { contactId: contact.contactId as string, phone: contact.phone }, 'skipped', {
+                skipCode: 'SUPPRESSED',
+                skipReason: `Telefone suprimido globalmente${suppression.reason ? `: ${suppression.reason}` : ''}`,
+                traceId,
+              })
+              dbTimeMs += Date.now() - t0
+
+              await emitWorkflowTrace({
+                traceId,
+                campaignId,
+                step,
+                batchIndex,
+                contactId: contact.contactId,
+                phoneMasked,
+                phase: 'suppression_skip',
+                ok: true,
+                extra: { source: suppression.source, reason: suppression.reason },
+              })
+
+              skippedCount++
+              console.log(`⏭️ Skipped (suppressed) ${contact.phone}`)
               return
             }
 
@@ -476,8 +590,20 @@ export const { POST } = serve<CampaignWorkflowInput>(
             } else {
               // Extract error code and translate to Portuguese
               const errorCode = data.error?.code || 0
-              const originalError = data.error?.message || 'Unknown error'
-              const translatedError = getUserFriendlyMessage(errorCode) || originalError
+              const metaTitle = data.error?.error_user_title || data.error?.type || ''
+              const metaMessage = data.error?.error_user_msg || data.error?.message || 'Unknown error'
+              const metaDetails = data.error?.error_data?.details || ''
+              const metaFbtraceId = data.error?.fbtrace_id || ''
+              const metaSubcode = typeof data.error?.error_subcode === 'number' ? data.error.error_subcode : undefined
+              const metaHref = data.error?.href || ''
+
+              const translatedError = getUserFriendlyMessageForMetaError({
+                code: errorCode,
+                title: metaTitle,
+                message: metaMessage,
+                details: metaDetails,
+              })
+
               const errorWithCode = `(#${errorCode}) ${translatedError}`
 
               // Feedback loop: 130429 = throughput estourado.
@@ -533,7 +659,21 @@ export const { POST } = serve<CampaignWorkflowInput>(
               // Update contact status in Supabase
               {
                 const t0 = Date.now()
-                await updateContactStatus(campaignId, { contactId: contact.contactId as string, phone: contact.phone }, 'failed', { error: errorWithCode, traceId })
+                await updateContactStatus(
+                  campaignId,
+                  { contactId: contact.contactId as string, phone: contact.phone },
+                  'failed',
+                  {
+                    error: errorWithCode,
+                    errorCode,
+                    errorTitle: metaTitle || undefined,
+                    errorDetails: metaDetails || metaMessage || undefined,
+                    errorFbtraceId: metaFbtraceId || undefined,
+                    errorSubcode: metaSubcode,
+                    errorHref: metaHref || undefined,
+                    traceId,
+                  }
+                )
                 dbTimeMs += Date.now() - t0
               }
 
@@ -568,7 +708,17 @@ export const { POST } = serve<CampaignWorkflowInput>(
 
               {
                 const t0 = Date.now()
-                await updateContactStatus(campaignId, { contactId: contact.contactId as string, phone: contact.phone }, 'failed', { error: errorMsg, traceId })
+                await updateContactStatus(
+                  campaignId,
+                  { contactId: contact.contactId as string, phone: contact.phone },
+                  'failed',
+                  {
+                    error: errorMsg,
+                    errorTitle: 'Contact exception',
+                    errorDetails: errorMsg,
+                    traceId,
+                  }
+                )
                 dbTimeMs += Date.now() - t0
               }
               failedCount++

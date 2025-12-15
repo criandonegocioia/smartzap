@@ -6,6 +6,7 @@ import { templateDb } from '@/lib/supabase-db'
 
 import { precheckContactForTemplate } from '@/lib/whatsapp/template-contract'
 import { normalizePhoneNumber } from '@/lib/phone-formatter'
+import { getActiveSuppressionsByPhone } from '@/lib/phone-suppressions'
 
 import { ContactStatus } from '@/types'
 
@@ -252,11 +253,63 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // =====================================================================
+  // Checagens globais (antes do precheck): opt-out + supressões
+  // =====================================================================
+  const uniqueContactIds = Array.from(
+    new Set(normalizedInput.map((c) => String(c.contactId || '').trim()).filter(Boolean))
+  )
+
+  const statusByContactId = new Map<string, string>()
+  if (uniqueContactIds.length > 0) {
+    const { data: contactRows, error: contactRowsError } = await supabase
+      .from('contacts')
+      .select('id, status')
+      .in('id', uniqueContactIds)
+
+    if (contactRowsError) {
+      console.warn('[Dispatch] Falha ao carregar status dos contatos (best-effort):', contactRowsError)
+    } else {
+      for (const row of (contactRows || []) as any[]) {
+        if (!row?.id) continue
+        statusByContactId.set(String(row.id), String(row.status || ''))
+      }
+    }
+  }
+
+  const normalizedPhonesForSuppression = Array.from(
+    new Set(normalizedInput.map((c) => normalizePhoneNumber(String(c.phone || '').trim())).filter(Boolean))
+  )
+
+  let suppressionsByPhone = new Map<string, { phone: string; reason: string | null; source: string | null }>()
+  try {
+    const active = await getActiveSuppressionsByPhone(normalizedPhonesForSuppression)
+    suppressionsByPhone = new Map(
+      Array.from(active.entries()).map(([phone, row]) => [phone, { phone, reason: row.reason, source: row.source }])
+    )
+  } catch (e) {
+    console.warn('[Dispatch] Falha ao carregar phone_suppressions (best-effort):', e)
+  }
+
   const validContacts: DispatchContactResolved[] = []
   const skippedContacts: Array<{ contact: DispatchContact; code: string; reason: string; normalizedPhone?: string }> = []
 
   for (const c of normalizedInput) {
     const contactId = c.contactId
+
+    // Opt-out global (contacts.status)
+    const contactStatus = contactId ? statusByContactId.get(String(contactId)) : null
+    if (contactStatus === ContactStatus.OPT_OUT) {
+      const normalizedPhone = normalizePhoneNumber(String(c.phone || '').trim())
+      skippedContacts.push({
+        contact: c,
+        code: 'OPT_OUT',
+        reason: 'Contato opt-out (não quer receber mensagens).',
+        normalizedPhone,
+      })
+      continue
+    }
+
     const precheck = precheckContactForTemplate(
       {
         phone: c.phone,
@@ -281,6 +334,36 @@ export async function POST(request: NextRequest) {
       custom_fields: c.custom_fields,
       contactId: contactId as string,
     })
+  }
+
+  // Remover da fila qualquer número globalmente suprimido
+  if (validContacts.length > 0 && suppressionsByPhone.size > 0) {
+    const keep: DispatchContactResolved[] = []
+    for (const v of validContacts) {
+      const suppression = suppressionsByPhone.get(v.phone)
+      if (!suppression) {
+        keep.push(v)
+        continue
+      }
+
+      // Encontrar o contato original para persistir snapshot como skipped
+      const original = normalizedInput.find((c) => String(c.contactId) === String(v.contactId))
+      const fallbackContact: DispatchContact = original || {
+        phone: v.phone,
+        name: v.name || '',
+        email: v.email,
+        custom_fields: v.custom_fields,
+        contactId: v.contactId,
+      }
+      skippedContacts.push({
+        contact: fallbackContact,
+        code: 'SUPPRESSED',
+        reason: `Telefone suprimido globalmente${suppression.reason ? `: ${suppression.reason}` : ''}`,
+        normalizedPhone: v.phone,
+      })
+    }
+    validContacts.length = 0
+    validContacts.push(...keep)
   }
 
   // Persistir snapshot + status por contato (pending vs skipped)

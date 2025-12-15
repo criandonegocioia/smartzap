@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic' // Prevent caching of verification requests
 import { supabase } from '@/lib/supabase'
+import { normalizePhoneNumber } from '@/lib/phone-formatter'
+import { upsertPhoneSuppression } from '@/lib/phone-suppressions'
 import {
   mapWhatsAppError,
   isCriticalError,
   isOptOutError,
-  getUserFriendlyMessage,
-  getErrorCategory
+  getUserFriendlyMessageForMetaError,
+  getRecommendedActionForMetaError,
+  normalizeMetaErrorTextForStorage
 } from '@/lib/whatsapp-errors'
 
 import { emitWorkflowTrace, maskPhone } from '@/lib/workflow-trace'
@@ -23,6 +26,92 @@ async function getWhatsAppAccessToken(): Promise<string | null> {
 
 // Get or generate webhook verify token (Supabase settings preferred, env var fallback)
 import { getVerifyToken } from '@/lib/verify-token'
+
+function extractInboundText(message: any): string {
+  // Meta pode enviar diferentes tipos de payload: text/button/interactive
+  const textBody = message?.text?.body
+  if (typeof textBody === 'string' && textBody.trim()) return textBody
+
+  const buttonText = message?.button?.text
+  if (typeof buttonText === 'string' && buttonText.trim()) return buttonText
+
+  const interactiveButtonTitle = message?.interactive?.button_reply?.title
+  if (typeof interactiveButtonTitle === 'string' && interactiveButtonTitle.trim()) return interactiveButtonTitle
+
+  const interactiveListTitle = message?.interactive?.list_reply?.title
+  if (typeof interactiveListTitle === 'string' && interactiveListTitle.trim()) return interactiveListTitle
+
+  return ''
+}
+
+function isOptOutKeyword(textRaw: string): boolean {
+  const t = String(textRaw || '')
+    .trim()
+    .toLowerCase()
+    // normaliza acentos comuns para facilitar matching
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+
+  if (!t) return false
+
+  // Palavras-chave comuns (PT-BR + EN) — agressivo por requisito.
+  const keywords = [
+    'parar',
+    'pare',
+    'stop',
+    'cancelar',
+    'cancele',
+    'sair',
+    'remover',
+    'remove',
+    'descadastrar',
+    'desinscrever',
+    'unsubscribe',
+    'optout',
+    'opt-out',
+    'nao quero',
+    'não quero',
+    'nao receber',
+    'não receber',
+  ]
+
+  // Match por inclusão para cobrir frases (ex.: "por favor parar")
+  return keywords.some((k) => t.includes(k))
+}
+
+async function markContactOptOutAndSuppress(input: {
+  phoneRaw: string
+  source: string
+  reason: string
+  metadata?: Record<string, unknown>
+}): Promise<void> {
+  const phone = normalizePhoneNumber(input.phoneRaw)
+  const now = new Date().toISOString()
+
+  // Best-effort: atualiza contatos (se existir)
+  try {
+    await supabase
+      .from('contacts')
+      .update({ status: 'Opt-out', updated_at: now })
+      .eq('phone', phone)
+  } catch (e) {
+    console.warn('[Webhook] Falha ao atualizar contacts.status para Opt-out (best-effort):', e)
+  }
+
+  // Fonte da verdade para supressão global
+  try {
+    await upsertPhoneSuppression({
+      phone,
+      reason: input.reason,
+      source: input.source,
+      metadata: input.metadata || {},
+      isActive: true,
+      expiresAt: null,
+    })
+  } catch (e) {
+    console.warn('[Webhook] Falha ao upsert phone_suppressions (best-effort):', e)
+  }
+}
 
 function maskTokenPreview(token: string | null | undefined): string {
   if (!token) return '—'
@@ -302,13 +391,28 @@ export async function POST(request: NextRequest) {
               break
 
             case 'failed':
-              const errorCode = errors?.[0]?.code || 0
-              const errorTitle = errors?.[0]?.title || 'Unknown error'
-              const errorDetails = errors?.[0]?.error_data?.details || errors?.[0]?.message || ''
+              const metaError = errors?.[0] || null
+              const errorCode = metaError?.code || 0
+              const errorTitle = metaError?.title || 'Unknown error'
+              const metaMessage = metaError?.message || ''
+              const metaDetails = metaError?.error_data?.details || ''
+              const errorDetails = metaDetails || metaMessage
+              const errorHref = metaError?.href || ''
 
               // Map error to friendly message
               const mappedError = mapWhatsAppError(errorCode)
-              const failureReason = mappedError.userMessage
+              const failureReason = getUserFriendlyMessageForMetaError({
+                code: errorCode,
+                title: errorTitle,
+                message: metaMessage,
+                details: metaDetails,
+              })
+              const recommendedAction = getRecommendedActionForMetaError({
+                code: errorCode,
+                title: errorTitle,
+                message: metaMessage,
+                details: metaDetails,
+              })
 
               console.log(`❌ Failed: ${phoneMasked || phone} - [${errorCode}] ${errorTitle} (campaign: ${campaignId})${traceId ? ` (traceId: ${traceId})` : ''}`)
               console.log(`   Category: ${mappedError.category}, Retryable: ${mappedError.retryable}`)
@@ -342,7 +446,10 @@ export async function POST(request: NextRequest) {
                     status: 'failed',
                     failed_at: nowFailed,
                     failure_code: errorCode,
-                    failure_reason: failureReason
+                    failure_reason: failureReason,
+                    failure_title: normalizeMetaErrorTextForStorage(errorTitle, 200),
+                    failure_details: normalizeMetaErrorTextForStorage(errorDetails, 800),
+                    failure_href: normalizeMetaErrorTextForStorage(errorHref, 400),
                   })
                   .eq('message_id', messageId)
                   .neq('status', 'failed')
@@ -374,8 +481,8 @@ export async function POST(request: NextRequest) {
                       id: `alert_${errorCode}_${Date.now()}`,
                       type: mappedError.category,
                       code: errorCode,
-                      message: mappedError.userMessage,
-                      details: JSON.stringify({ title: errorTitle, details: errorDetails, action: mappedError.action }),
+                      message: failureReason,
+                      details: JSON.stringify({ title: errorTitle, details: errorDetails, action: recommendedAction }),
                       created_at: nowFailed
                     })
                 }
@@ -383,7 +490,17 @@ export async function POST(request: NextRequest) {
                 // Handle opt-out - mark contact
                 if (isOptOutError(errorCode)) {
                   console.log(`📵 Opt-out detected for ${phone} - Marking contact`)
-                  // Could update a global contacts table if exists
+                  await markContactOptOutAndSuppress({
+                    phoneRaw: phone,
+                    source: 'meta_opt_out_error',
+                    reason: failureReason || `Opt-out detectado pela Meta (código ${errorCode})`,
+                    metadata: {
+                      messageId,
+                      errorCode,
+                      errorTitle,
+                      errorDetails,
+                    },
+                  })
                 }
 
               } catch (e) {
@@ -400,7 +517,24 @@ export async function POST(request: NextRequest) {
         for (const message of messages) {
           const from = message.from
           const messageType = message.type
-          console.log(`📩 Incoming message from ${from}: ${messageType} (Chatbot disabled)`)
+          const text = extractInboundText(message)
+          console.log(`📩 Incoming message from ${from}: ${messageType} (Chatbot disabled)${text ? ` | text="${text}"` : ''}`)
+
+          // Opt-out real: usuário envia palavra-chave
+          if (text && isOptOutKeyword(text)) {
+            console.log(`📵 Opt-out keyword detected from ${from}: "${text}"`)
+            await markContactOptOutAndSuppress({
+              phoneRaw: from,
+              source: 'inbound_keyword',
+              reason: 'Usuário solicitou opt-out via mensagem inbound',
+              metadata: {
+                messageType,
+                text,
+                messageId: message?.id || null,
+                timestamp: message?.timestamp || null,
+              },
+            })
+          }
         }
       }
     }
