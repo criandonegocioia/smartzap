@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2, Save } from 'lucide-react'
 import { Page, PageActions, PageDescription, PageHeader, PageTitle } from '@/components/ui/page'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { FlowBuilderCanvas } from '@/components/features/flows/builder/FlowBuilderCanvas'
 import { FlowJsonEditorPanel } from '@/components/features/flows/builder/FlowJsonEditorPanel'
 import { useFlowEditorController } from '@/hooks/useFlowEditor'
@@ -45,12 +46,30 @@ export default function FlowBuilderEditorPage({
           </PageDescription>
         </div>
         <PageActions>
-          <Link href="/flows/builder">
-            <Button variant="outline" className="border-white/10 bg-zinc-900 hover:bg-white/5">
-              <ArrowLeft className="w-4 h-4" />
-              Lista
+          <div className="flex items-center gap-2">
+            <Link href="/templates?tab=flows">
+              <Button variant="outline" className="border-white/10 bg-zinc-900 hover:bg-white/5">
+                <ArrowLeft className="w-4 h-4" />
+                Voltar
+              </Button>
+            </Link>
+
+            <Button
+              variant="outline"
+              onClick={() => controller.save({ name, metaFlowId: metaFlowId || undefined })}
+              disabled={controller.isSaving}
+              className="border-white/10 bg-zinc-900 hover:bg-white/5"
+            >
+              {controller.isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Salvar meta
             </Button>
-          </Link>
+
+            <Link href="/flows/builder">
+              <Button variant="outline" className="border-white/10 bg-zinc-900 hover:bg-white/5">
+                Lista
+              </Button>
+            </Link>
+          </div>
         </PageActions>
       </PageHeader>
 
@@ -88,55 +107,47 @@ export default function FlowBuilderEditorPage({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <FlowJsonEditorPanel
-              flowId={flow.id}
-              flowName={flow.name}
-              value={(flow as any).flow_json}
-              isSaving={controller.isSaving}
-              onSave={(flowJson) => controller.save({ flowJson })}
-            />
-
-            <div className="min-h-130">
-              <FlowBuilderCanvas
-                name={name}
-                metaFlowId={metaFlowId || null}
-                initialSpec={controller.spec}
-                isSaving={controller.isSaving}
-                onSave={(patch) => {
-                  controller.save({
-                    ...(patch.name !== undefined ? { name: patch.name } : {}),
-                    ...(patch.metaFlowId !== undefined ? { metaFlowId: patch.metaFlowId } : {}),
-                    ...(patch.spec !== undefined ? { spec: patch.spec } : {}),
-                  })
-                }}
-              />
+          <div className="glass-panel p-4">
+            <div className="text-sm text-gray-300">
+              Você <span className="font-semibold">não precisa saber JSON</span> para criar um Flow.
+              Use o modo <span className="font-semibold">Visual</span> (recomendado). O JSON fica em <span className="font-semibold">Avançado</span> só para quem quiser.
             </div>
           </div>
 
-          {/* Barra inferior fixa */}
-          <div className="fixed left-0 right-0 bottom-0 z-40 border-t border-white/10 bg-zinc-950/95 backdrop-blur supports-backdrop-filter:bg-zinc-950/70">
-            <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-              <Link href="/flows/builder">
-                <Button variant="outline" className="border-white/10 bg-zinc-900 hover:bg-white/5">
-                  Voltar
-                </Button>
-              </Link>
+          <Tabs defaultValue="visual" className="mt-2">
+            <TabsList className="bg-zinc-900/60 border border-white/10">
+              <TabsTrigger value="visual">Visual (recomendado)</TabsTrigger>
+              <TabsTrigger value="json">Avançado (JSON)</TabsTrigger>
+            </TabsList>
 
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => controller.save({ name, metaFlowId: metaFlowId || undefined })}
-                  disabled={controller.isSaving}
-                  className="border-white/10 bg-zinc-900 hover:bg-white/5"
-                >
-                  {controller.isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Salvar meta
-                </Button>
+            <TabsContent value="visual">
+              <div className="min-h-130">
+                <FlowBuilderCanvas
+                  name={name}
+                  metaFlowId={metaFlowId || null}
+                  initialSpec={controller.spec}
+                  isSaving={controller.isSaving}
+                  onSave={(patch) => {
+                    controller.save({
+                      ...(patch.name !== undefined ? { name: patch.name } : {}),
+                      ...(patch.metaFlowId !== undefined ? { metaFlowId: patch.metaFlowId } : {}),
+                      ...(patch.spec !== undefined ? { spec: patch.spec } : {}),
+                    })
+                  }}
+                />
               </div>
-            </div>
-          </div>
-          <div className="h-24" />
+            </TabsContent>
+
+            <TabsContent value="json">
+              <FlowJsonEditorPanel
+                flowId={flow.id}
+                flowName={flow.name}
+                value={(flow as any).flow_json}
+                isSaving={controller.isSaving}
+                onSave={(flowJson) => controller.save({ flowJson })}
+              />
+            </TabsContent>
+          </Tabs>
         </>
       )}
     </Page>

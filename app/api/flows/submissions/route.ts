@@ -18,6 +18,13 @@ function getErrorMessage(error: unknown): string {
   return 'Erro desconhecido'
 }
 
+function isMissingTable(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const anyErr = error as any
+  const msg = typeof anyErr.message === 'string' ? anyErr.message : ''
+  return anyErr.code === 'PGRST205' || /could not find the table/i.test(msg)
+}
+
 function clampInt(value: string | null, min: number, max: number, fallback: number): number {
   const n = Number(value)
   if (!Number.isFinite(n)) return fallback
@@ -60,6 +67,18 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     const message = getErrorMessage(error)
     console.error('Failed to fetch flow submissions:', error)
+
+    // Se a tabela não existir (migration não aplicada), não quebra a UI.
+    if (isMissingTable(error)) {
+      return NextResponse.json([], {
+        headers: {
+          'Cache-Control': 'private, no-store, no-cache, must-revalidate, max-age=0',
+          Pragma: 'no-cache',
+          Expires: '0',
+          'X-Warning': 'flow_submissions_missing',
+        },
+      })
+    }
 
     if (process.env.NODE_ENV !== 'production') {
       return NextResponse.json({ error: 'Falha ao buscar submissions de Flow', details: message }, { status: 500 })

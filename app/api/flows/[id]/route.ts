@@ -6,6 +6,13 @@ export const revalidate = 0
 
 import { supabase } from '@/lib/supabase'
 
+function isMissingDbColumn(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const anyErr = error as any
+  const msg = typeof anyErr.message === 'string' ? anyErr.message : ''
+  return anyErr.code === '42703' || /column .* does not exist/i.test(msg)
+}
+
 const PatchFlowSchema = z
   .object({
     name: z.string().min(1).max(140).optional(),
@@ -23,7 +30,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     const { data, error } = await supabase
       .from('flows')
-      .select('id,name,status,meta_flow_id,template_key,flow_json,flow_version,mapping,spec,created_at,updated_at')
+      // '*' evita quebra quando a migration ainda não foi aplicada.
+      .select('*')
       .eq('id', id)
       .limit(1)
 
@@ -60,12 +68,17 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
     if (patch.mapping !== undefined) update.mapping = patch.mapping
 
-    const { data, error } = await supabase
-      .from('flows')
-      .update(update)
-      .eq('id', id)
-      .select('id,name,status,meta_flow_id,template_key,flow_json,flow_version,mapping,spec,created_at,updated_at')
-      .limit(1)
+    let { data, error } = await supabase.from('flows').update(update).eq('id', id).select('*').limit(1)
+
+    // Fallback: se colunas novas não existirem, remove-as e tenta novamente.
+    if (error && isMissingDbColumn(error)) {
+      const stripped: Record<string, unknown> = { ...update }
+      delete stripped.template_key
+      delete stripped.flow_json
+      delete stripped.flow_version
+      delete stripped.mapping
+      ;({ data, error } = await supabase.from('flows').update(stripped).eq('id', id).select('*').limit(1))
+    }
 
     if (error) return NextResponse.json({ error: error.message || 'Falha ao atualizar flow' }, { status: 500 })
 

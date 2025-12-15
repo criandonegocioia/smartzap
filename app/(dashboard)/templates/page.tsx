@@ -1,16 +1,23 @@
 'use client';
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTemplatesController } from '@/hooks/useTemplates';
 import { TemplateListView } from '@/components/features/templates/TemplateListView';
 import { useManualDraftsController } from '@/hooks/useManualDrafts';
 import { ManualDraftsView } from '@/components/features/templates/ManualDraftsView';
 import { useTemplateProjectsQuery, useTemplateProjectMutations } from '@/hooks/useTemplateProjects';
-import { Loader2, Plus, Folder, Search, RefreshCw, CheckCircle, AlertTriangle, Trash2, Calendar, LayoutGrid, Copy, Sparkles, Zap } from 'lucide-react';
+import { Loader2, Plus, Folder, Search, RefreshCw, CheckCircle, AlertTriangle, Trash2, LayoutGrid, Sparkles, Zap, Workflow } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Page, PageActions, PageDescription, PageHeader, PageTitle } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SendFlowDialog } from '@/components/features/flows/SendFlowDialog'
+import { FlowSubmissionsView } from '@/components/features/flows/FlowSubmissionsView'
+import { useFlowSubmissionsController } from '@/hooks/useFlowSubmissions'
+import { flowsService } from '@/services/flowsService'
+import { useQuery } from '@tanstack/react-query'
 
 // Status Badge Component
 const StatusBadge = ({ status, approvedCount, totalCount }: { status: string; approvedCount?: number; totalCount?: number }) => {
@@ -59,12 +66,36 @@ const AIFeatureWarningBanner = () => (
 
 export default function TemplatesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const controller = useTemplatesController();
   const draftsController = useManualDraftsController();
   const { data: projects, isLoading: isLoadingProjects, refetch } = useTemplateProjectsQuery();
   const { deleteProject, isDeleting } = useTemplateProjectMutations();
   const [searchTerm, setSearchTerm] = React.useState('');
-  const [activeTab, setActiveTab] = React.useState<'projects' | 'meta' | 'drafts'>('meta');
+  const [activeTab, setActiveTab] = React.useState<'projects' | 'meta' | 'drafts' | 'flows'>('meta');
+
+  // Flows hub state
+  const flowSubmissionsController = useFlowSubmissionsController()
+  const flowsQuery = useQuery({
+    queryKey: ['flows'],
+    queryFn: flowsService.list,
+    staleTime: 10_000,
+    enabled: activeTab === 'flows',
+  })
+  const builderFlows = flowsQuery.data || []
+
+  // Deep-link: /templates?tab=flows
+  React.useEffect(() => {
+    const tab = (searchParams?.get('tab') || '').toLowerCase()
+    if (tab === 'meta' || tab === 'drafts' || tab === 'projects' || tab === 'flows') {
+      setActiveTab((prev) => ((prev as any) === tab ? prev : (tab as any)))
+    }
+  }, [searchParams])
+
+  const setTab = (tab: 'projects' | 'meta' | 'drafts' | 'flows') => {
+    setActiveTab(tab)
+    router.replace(`/templates?tab=${encodeURIComponent(tab)}`)
+  }
 
   const handleDeleteProject = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -87,7 +118,11 @@ export default function TemplatesPage() {
       <PageHeader>
         <div>
           <PageTitle>Templates</PageTitle>
-          <PageDescription>Gerencie templates da Meta e rascunhos manuais.</PageDescription>
+          <PageDescription>
+            {activeTab === 'flows'
+              ? 'Crie e monitore WhatsApp Flows, e mapeie respostas para campos do SmartZap.'
+              : 'Gerencie templates da Meta e rascunhos manuais.'}
+          </PageDescription>
         </div>
         <PageActions>
           {activeTab === 'meta' && (
@@ -129,13 +164,30 @@ export default function TemplatesPage() {
               Novo Projeto
             </button>
           )}
+
+          {activeTab === 'flows' && (
+            <div className="flex items-center gap-2">
+              <SendFlowDialog
+                flows={builderFlows}
+                isLoadingFlows={flowsQuery.isFetching}
+                onRefreshFlows={() => flowsQuery.refetch()}
+              />
+              <Button
+                variant="outline"
+                onClick={() => router.push('/flows/builder')}
+                className="border-white/10 bg-zinc-900 hover:bg-white/5"
+              >
+                Abrir Flow Builder
+              </Button>
+            </div>
+          )}
         </PageActions>
       </PageHeader>
 
       {/* TABS */}
       <div className="flex gap-1 bg-zinc-900 border border-white/5 p-1 rounded-xl w-fit">
         <button
-          onClick={() => setActiveTab('meta')}
+          onClick={() => setTab('meta')}
           className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'meta'
             ? 'bg-white/10 text-white shadow-sm'
             : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -146,7 +198,7 @@ export default function TemplatesPage() {
         </button>
 
         <button
-          onClick={() => setActiveTab('drafts')}
+          onClick={() => setTab('drafts')}
           className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'drafts'
             ? 'bg-white/10 text-white shadow-sm'
             : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -157,7 +209,18 @@ export default function TemplatesPage() {
         </button>
 
         <button
-          onClick={() => setActiveTab('projects')}
+          onClick={() => setTab('flows')}
+          className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'flows'
+            ? 'bg-white/10 text-white shadow-sm'
+            : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+        >
+          <Workflow className="w-4 h-4" />
+          Flows
+        </button>
+
+        <button
+          onClick={() => setTab('projects')}
           className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'projects'
             ? 'bg-white/10 text-white shadow-sm'
             : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -192,6 +255,90 @@ export default function TemplatesPage() {
           isSubmitting={draftsController.isSubmitting}
           normalizeName={draftsController.normalizeTemplateName}
         />
+      )}
+
+      {activeTab === 'flows' && (
+        <div className="space-y-4">
+          <Tabs defaultValue="submissions" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="submissions">Submissões</TabsTrigger>
+              <TabsTrigger value="drafts">Rascunhos</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="submissions" className="space-y-4">
+              <FlowSubmissionsView
+                submissions={flowSubmissionsController.submissions}
+                isLoading={flowSubmissionsController.isLoading}
+                isFetching={flowSubmissionsController.isFetching}
+                phoneFilter={flowSubmissionsController.phoneFilter}
+                onPhoneFilterChange={flowSubmissionsController.setPhoneFilter}
+                flowIdFilter={flowSubmissionsController.flowIdFilter}
+                onFlowIdFilterChange={flowSubmissionsController.setFlowIdFilter}
+                onRefresh={() => flowSubmissionsController.refetch()}
+                builderFlows={builderFlows}
+              />
+            </TabsContent>
+
+            <TabsContent value="drafts" className="space-y-4">
+              <div className="glass-panel p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="text-white font-semibold">Seus rascunhos de Flow</div>
+                    <div className="text-sm text-gray-400">Dica: preencha o Meta Flow ID para cruzar com as submissões.</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => flowsQuery.refetch()}
+                      disabled={flowsQuery.isLoading || flowsQuery.isFetching}
+                    >
+                      {flowsQuery.isFetching ? 'Atualizando…' : 'Atualizar lista'}
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => router.push('/flows/builder')}>
+                      Ir para o Builder
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-3 text-xs text-gray-500">
+                  {flowsQuery.isLoading ? 'Carregando…' : `Mostrando ${builderFlows.length} flow(s)`}
+                  {flowsQuery.isFetching && !flowsQuery.isLoading ? ' (atualizando…)': ''}
+                </div>
+              </div>
+
+              <div className="glass-panel p-0 overflow-hidden">
+                {builderFlows.length === 0 ? (
+                  <div className="px-4 py-10 text-center text-gray-500">Nenhum flow ainda. Crie um no Builder para começar.</div>
+                ) : (
+                  <div className="divide-y divide-white/5">
+                    {builderFlows.slice(0, 12).map((f) => (
+                      <div key={f.id} className="flex flex-col gap-2 px-4 py-3 hover:bg-white/5 md:flex-row md:items-center md:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-gray-200 font-medium truncate">{f.name}</div>
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border bg-white/5 text-gray-200 border-white/10">
+                              {f.status}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 font-mono truncate">Meta Flow ID: {f.meta_flow_id || '—'}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button type="button" variant="secondary" onClick={() => router.push(`/flows/builder/${encodeURIComponent(f.id)}`)}>
+                            Abrir
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    {builderFlows.length > 12 && (
+                      <div className="px-4 py-3 text-xs text-gray-500">Mostrando 12 de {builderFlows.length}. Abra o Builder para ver todos.</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
       )}
 
       {activeTab === 'projects' && (

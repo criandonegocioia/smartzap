@@ -1,12 +1,13 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { PrefetchLink } from '@/components/ui/PrefetchLink';
-import { ChevronLeft, Clock, CheckCircle2, Eye, AlertCircle, Download, Search, Filter, RefreshCw, Pause, Play, Calendar, Loader2, X, FileText, Ban, Pencil } from 'lucide-react';
+import { ChevronLeft, ChevronDown, Clock, CheckCircle2, Eye, AlertCircle, Download, Search, Filter, RefreshCw, Pause, Play, Calendar, Loader2, X, FileText, Ban, Pencil } from 'lucide-react';
 import { Campaign, CampaignStatus, Message, MessageStatus, Template } from '../../../types';
 import { TemplatePreviewRenderer } from '../templates/TemplatePreviewRenderer';
 import { templateService } from '../../../services';
 import { ContactQuickEditModal } from '@/components/features/contacts/ContactQuickEditModal';
 import { humanizePrecheckReason } from '@/lib/precheck-humanizer';
 import { Page, PageHeader, PageTitle } from '@/components/ui/page';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface DetailCardProps {
   title: string;
@@ -21,7 +22,7 @@ interface DetailCardProps {
 const DetailCard = ({ title, value, subvalue, icon: Icon, color, onClick, isActive }: DetailCardProps) => (
   <div
     onClick={onClick}
-    className={`glass-panel p-6 rounded-2xl border-l-4 transition-all duration-200 cursor-pointer hover:bg-white/5 ${isActive ? 'ring-2 ring-white/20 bg-white/5' : ''}`}
+    className={`glass-panel p-6 rounded-2xl border-l-4 transition-all duration-200 ${onClick ? 'cursor-pointer hover:bg-white/5' : 'cursor-default'} ${isActive ? 'ring-2 ring-white/20 bg-white/5' : ''}`}
     style={{ borderLeftColor: color }}
   >
     <div className="flex justify-between items-start mb-2">
@@ -236,6 +237,8 @@ export const CampaignDetailsView: React.FC<CampaignDetailsViewProps> = ({
   setFilterStatus,
 }) => {
   const [showTemplatePreview, setShowTemplatePreview] = useState(false);
+  const [isPerfOpen, setIsPerfOpen] = useState(false);
+  const [isPerfTechOpen, setIsPerfTechOpen] = useState(false);
   const [quickEditContactId, setQuickEditContactId] = useState<string | null>(null);
   const [quickEditFocus, setQuickEditFocus] = useState<any>(null);
 
@@ -273,6 +276,53 @@ export const CampaignDetailsView: React.FC<CampaignDetailsViewProps> = ({
     const mid = Math.floor(vals.length / 2);
     return vals.length % 2 === 1 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
   }, [baseline]);
+
+  const perfSourceLabel = useMemo(() => {
+    const s = String(metrics?.source || '').trim();
+    if (s === 'run_metrics') return { label: 'Dados: avançados', tone: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20' };
+    if (s === 'campaigns_fallback') return { label: 'Dados: básicos', tone: 'text-amber-200 bg-amber-500/10 border-amber-500/20' };
+    if (!s) return { label: 'Dados: —', tone: 'text-gray-500 bg-zinc-900/60 border-white/10' };
+    return { label: `Dados: ${s}`, tone: 'text-gray-500 bg-zinc-900/60 border-white/10' };
+  }, [metrics?.source]);
+
+  const limiterInfo = useMemo(() => {
+    const saw429 = perf?.saw_throughput_429;
+    const metaAvg = Number(perf?.meta_avg_ms);
+    const hasMetaAvg = Number.isFinite(metaAvg) && metaAvg > 0;
+
+    if (saw429 === true) {
+      return {
+        value: 'Rate limit',
+        subvalue: 'A Meta sinalizou 130429 (throughput). Reduza a pressão (mps/concurrency) ou aumente o cooldown.',
+        color: '#f59e0b',
+      };
+    }
+
+    if (saw429 === false) {
+      return {
+        value: 'OK',
+        subvalue: hasMetaAvg
+          ? `Sem 130429. Latência média da Meta: ${formatMs(metaAvg)}.`
+          : 'Sem 130429 detectado nesta execução.',
+        color: '#3b82f6',
+      };
+    }
+
+    // Unknown
+    if (metrics?.source === 'campaigns_fallback') {
+      return {
+        value: '—',
+        subvalue: 'Sinais da Meta (130429/latência) exigem métricas avançadas (run_metrics).',
+        color: '#3b82f6',
+      };
+    }
+
+    return {
+      value: '—',
+      subvalue: 'Ainda não há sinal suficiente (ou a execução não registrou métricas avançadas).',
+      color: '#3b82f6',
+    };
+  }, [metrics?.source, perf?.meta_avg_ms, perf?.saw_throughput_429]);
 
   if (isLoading || !campaign) return <div className="p-10 text-center text-gray-500">Carregando...</div>;
 
@@ -480,72 +530,140 @@ export const CampaignDetailsView: React.FC<CampaignDetailsViewProps> = ({
       </div>
 
       {/* Performance / Baseline (sent-only) */}
-      <div className="mt-4 glass-panel rounded-2xl p-5 border border-white/5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-white font-bold">Performance do disparo (sent-only)</h3>
-            <p className="text-xs text-gray-500">
-              Baseline para comparar configurações do modo Turbo e medir evolução.
-            </p>
+      <Collapsible
+        open={isPerfOpen}
+        onOpenChange={setIsPerfOpen}
+        className="mt-4 glass-panel rounded-2xl p-5 border border-white/5"
+      >
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="w-full flex items-start justify-between gap-4 text-left"
+            aria-label={isPerfOpen ? 'Recolher performance do disparo' : 'Expandir performance do disparo'}
+          >
+            <div>
+              <h3 className="text-white font-bold">Velocidade do disparo</h3>
+              <p className="text-xs text-gray-500">
+                Somente envios (sent-only): janela entre <span className="font-mono">first_dispatch_at</span> e <span className="font-mono">last_sent_at</span>.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className={`text-[10px] uppercase tracking-wider rounded-full px-2 py-1 border ${perfSourceLabel.tone}`}>
+                {perfSourceLabel.label}
+              </span>
+              <ChevronDown
+                size={16}
+                className={`text-gray-500 transition-transform ${isPerfOpen ? 'rotate-180' : ''}`}
+              />
+            </div>
+          </button>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent className="mt-4">
+          {metrics?.source === 'campaigns_fallback' && (metrics as any)?.hint && (
+            <div className="text-xs text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+              <div className="font-medium">Métricas avançadas indisponíveis</div>
+              <div className="mt-1 text-amber-200/80">{(metrics as any).hint}</div>
+            </div>
+          )}
+
+          <div className={`${metrics?.source === 'campaigns_fallback' && (metrics as any)?.hint ? 'mt-4' : ''} grid grid-cols-1 sm:grid-cols-3 gap-4`}>
+            <div className="sm:col-span-2">
+              <DetailCard
+                title="Velocidade (throughput)"
+                value={formatThroughput(Number(perf?.throughput_mps))}
+                subvalue={(() => {
+                  const mps = Number(perf?.throughput_mps);
+                  const hasMps = Number.isFinite(mps) && mps > 0;
+
+                  if (!hasMps) {
+                    if (!perf?.first_dispatch_at) return 'Ainda não iniciou (sem first_dispatch_at).';
+                    if (!perf?.last_sent_at) return 'Em andamento (sem last_sent_at).';
+                    return 'Ainda sem dados suficientes para medir throughput.';
+                  }
+
+                  return baselineThroughputMedian
+                    ? `Baseline (mediana): ${baselineThroughputMedian.toFixed(2)} msg/s`
+                    : 'Sem baseline suficiente (rode mais campanhas para comparar).';
+                })()}
+                icon={CheckCircle2}
+                color="#10b981"
+              />
+            </div>
+
+            <DetailCard
+              title="Tempo total"
+              value={formatDurationMs(Number(perf?.dispatch_duration_ms))}
+              subvalue="Janela sent-only (first_dispatch_at → last_sent_at)"
+              icon={Clock}
+              color="#a1a1aa"
+            />
           </div>
-          <span className="text-[10px] uppercase tracking-wider text-gray-500 bg-zinc-900/60 border border-white/10 rounded-full px-2 py-1">
-            fonte: {metrics?.source || '—'}
-          </span>
-        </div>
 
-        {metrics?.source === 'campaigns_fallback' && (metrics as any)?.hint && (
-          <div className="mt-3 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
-            {(metrics as any).hint}
-          </div>
-        )}
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <DetailCard
+              title="Limitador atual"
+              value={limiterInfo.value}
+              subvalue={limiterInfo.subvalue}
+              icon={AlertCircle}
+              color={limiterInfo.color}
+            />
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <DetailCard
-            title="Throughput"
-            value={formatThroughput(Number(perf?.throughput_mps))}
-            subvalue={baselineThroughputMedian
-              ? `Mediana recente: ${baselineThroughputMedian.toFixed(2)} msg/s`
-              : 'Ainda sem baseline suficiente'}
-            icon={CheckCircle2}
-            color="#10b981"
-          />
-          <DetailCard
-            title="Duração do disparo"
-            value={formatDurationMs(Number(perf?.dispatch_duration_ms))}
-            subvalue="Janela entre first_dispatch_at e last_sent_at"
-            icon={Clock}
-            color="#a1a1aa"
-          />
-          <DetailCard
-            title="Meta (média)"
-            value={formatMs(Number(perf?.meta_avg_ms))}
-            subvalue={perf?.saw_throughput_429 ? '⚠️ Viu 130429 (throughput)' : 'Sem sinal de 130429'}
-            icon={Eye}
-            color="#3b82f6"
-          />
-        </div>
+            <div className="sm:col-span-2 glass-panel p-5 rounded-2xl border border-white/5">
+              <Collapsible open={isPerfTechOpen} onOpenChange={setIsPerfTechOpen}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between gap-4 text-left"
+                    aria-label={isPerfTechOpen ? 'Recolher detalhes técnicos' : 'Expandir detalhes técnicos'}
+                  >
+                    <div>
+                      <div className="text-sm text-gray-300 font-medium">Detalhes técnicos</div>
+                      <div className="text-xs text-gray-500">Config efetiva, Turbo e hash (útil para debug)</div>
+                    </div>
+                    <ChevronDown
+                      size={16}
+                      className={`text-gray-500 transition-transform ${isPerfTechOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                </CollapsibleTrigger>
 
-        <div className="mt-4 text-xs text-gray-400 grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <div className="bg-zinc-900/50 border border-white/10 rounded-lg p-3">
-            <div className="text-gray-500">Config efetiva</div>
-            <div className="mt-1 font-mono">
-              conc={perf?.config?.effective?.concurrency ?? '—'} | batch={perf?.config?.effective?.configuredBatchSize ?? '—'}
+                <CollapsibleContent className="mt-3">
+                  <div className="text-xs text-gray-400 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="bg-zinc-900/50 border border-white/10 rounded-lg p-3">
+                      <div className="text-gray-500">Config efetiva</div>
+                      <div className="mt-1 font-mono">
+                        conc={perf?.config?.effective?.concurrency ?? '—'} | batch={perf?.config?.effective?.configuredBatchSize ?? '—'}
+                      </div>
+                    </div>
+                    <div className="bg-zinc-900/50 border border-white/10 rounded-lg p-3">
+                      <div className="text-gray-500">Turbo (adaptive)</div>
+                      <div className="mt-1 font-mono">
+                        {perf?.config?.adaptive
+                          ? `enabled=${String(perf.config.adaptive.enabled)} maxMps=${perf.config.adaptive.maxMps}`
+                          : '—'}
+                      </div>
+                    </div>
+                    <div className="bg-zinc-900/50 border border-white/10 rounded-lg p-3">
+                      <div className="text-gray-500">Hash de config</div>
+                      <div className="mt-1 font-mono">{perf?.config_hash ?? '—'}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 text-[11px] text-gray-500">
+                    {perf?.trace_id ? (
+                      <span>trace_id: <span className="font-mono text-gray-400">{perf.trace_id}</span></span>
+                    ) : (
+                      <span>trace_id: <span className="font-mono text-gray-400">—</span></span>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             </div>
           </div>
-          <div className="bg-zinc-900/50 border border-white/10 rounded-lg p-3">
-            <div className="text-gray-500">Turbo (adaptive)</div>
-            <div className="mt-1 font-mono">
-              {perf?.config?.adaptive
-                ? `enabled=${String(perf.config.adaptive.enabled)} maxMps=${perf.config.adaptive.maxMps}`
-                : '—'}
-            </div>
-          </div>
-          <div className="bg-zinc-900/50 border border-white/10 rounded-lg p-3">
-            <div className="text-gray-500">Hash de config</div>
-            <div className="mt-1 font-mono">{perf?.config_hash ?? '—'}</div>
-          </div>
-        </div>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Message Log */}
       <div className="glass-panel rounded-2xl overflow-hidden">

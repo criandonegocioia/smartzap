@@ -7,6 +7,20 @@ export const revalidate = 0
 import { supabase } from '@/lib/supabase'
 import { getFlowTemplateByKey } from '@/lib/flow-templates'
 
+function isMissingDbColumn(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const anyErr = error as any
+  const msg = typeof anyErr.message === 'string' ? anyErr.message : ''
+  return anyErr.code === '42703' || /column .* does not exist/i.test(msg)
+}
+
+function isMissingTable(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const anyErr = error as any
+  const msg = typeof anyErr.message === 'string' ? anyErr.message : ''
+  return anyErr.code === 'PGRST205' || /could not find the table/i.test(msg)
+}
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
   if (typeof error === 'string') return error
@@ -31,7 +45,8 @@ export async function GET() {
   try {
     const { data, error } = await supabase
       .from('flows')
-      .select('id,name,status,meta_flow_id,template_key,flow_json,flow_version,mapping,spec,created_at,updated_at')
+      // Usar '*' para não quebrar quando a migration ainda não foi aplicada.
+      .select('*')
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -46,6 +61,18 @@ export async function GET() {
   } catch (error) {
     const message = getErrorMessage(error)
     console.error('Failed to list flows:', error)
+
+    // Se a tabela não existir (migration não aplicada), não quebra a UI.
+    if (isMissingTable(error)) {
+      return NextResponse.json([], {
+        headers: {
+          'Cache-Control': 'private, no-store, no-cache, must-revalidate, max-age=0',
+          Pragma: 'no-cache',
+          Expires: '0',
+          'X-Warning': 'flows_missing',
+        },
+      })
+    }
 
     // Em dev, devolvemos a causa para agilizar debug (sem vazar em prod)
     if (process.env.NODE_ENV !== 'production') {
@@ -80,25 +107,36 @@ export async function POST(request: Request) {
 
     const tpl = input.templateKey ? getFlowTemplateByKey(input.templateKey) : null
 
-    const { data, error } = await supabase
-      .from('flows')
-      .insert({
+    const fullInsert: Record<string, unknown> = {
+      name: input.name,
+      status: 'DRAFT',
+      spec: initialSpec,
+      created_at: now,
+      updated_at: now,
+      ...(tpl
+        ? {
+            template_key: tpl.key,
+            flow_json: tpl.flowJson,
+            flow_version: typeof (tpl.flowJson as any)?.version === 'string' ? ((tpl.flowJson as any).version as string) : null,
+            mapping: tpl.defaultMapping,
+          }
+        : {}),
+    }
+
+    // 1) tenta inserir com colunas novas
+    let { data, error } = await supabase.from('flows').insert(fullInsert).select('*').limit(1)
+
+    // 2) fallback: se a coluna não existir (migration não aplicada), remove campos novos
+    if (error && isMissingDbColumn(error)) {
+      const minimalInsert: Record<string, unknown> = {
         name: input.name,
         status: 'DRAFT',
-        ...(tpl
-          ? {
-              template_key: tpl.key,
-              flow_json: tpl.flowJson,
-              flow_version: typeof (tpl.flowJson as any)?.version === 'string' ? ((tpl.flowJson as any).version as string) : null,
-              mapping: tpl.defaultMapping,
-            }
-          : {}),
         spec: initialSpec,
         created_at: now,
         updated_at: now,
-      })
-      .select('id,name,status,meta_flow_id,template_key,flow_json,flow_version,mapping,spec,created_at,updated_at')
-      .limit(1)
+      }
+      ;({ data, error } = await supabase.from('flows').insert(minimalInsert).select('*').limit(1))
+    }
 
     if (error) {
       const message = getErrorMessage(error)

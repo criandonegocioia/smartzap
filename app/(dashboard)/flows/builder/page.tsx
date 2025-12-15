@@ -21,7 +21,7 @@ export default function FlowBuilderHomePage() {
           </PageDescription>
         </div>
         <PageActions>
-          <Link href="/flows">
+          <Link href="/templates?tab=flows">
             <Button variant="outline" className="border-white/10 bg-zinc-900 hover:bg-white/5">
               <ArrowLeft className="w-4 h-4" />
               Voltar
