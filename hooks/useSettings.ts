@@ -391,12 +391,29 @@ export const useSettingsController = () => {
       toast.dismiss(toastId);
       const msg = err?.message || 'Falha ao testar conexão';
       const details = err?.details;
-      const hint = (details as any)?.details?.wabaFromPhone
-        ? `WABA do Phone: ${(details as any).details.wabaFromPhone}`
-        : undefined;
+
+      const hintTitle = (details as any)?.details?.hintTitle as string | undefined
+      const hint = (details as any)?.details?.hint as string | undefined
+      const nextSteps = (details as any)?.details?.nextSteps as string[] | undefined
+      const fbtraceId = (details as any)?.details?.fbtraceId as string | undefined
+
+      const wabaFromPhone = (details as any)?.details?.wabaFromPhone
+      const legacyHint = wabaFromPhone ? `WABA do Phone: ${wabaFromPhone}` : undefined
+
+      const stepsPreview = Array.isArray(nextSteps) && nextSteps.length
+        ? nextSteps.slice(0, 2).map((s) => `• ${s}`).join('\n')
+        : null
+
+      const descriptionParts = [
+        hintTitle ? `${hintTitle}: ${msg}` : msg,
+        hint ? hint : null,
+        legacyHint ? legacyHint : null,
+        stepsPreview,
+        fbtraceId ? `fbtrace_id: ${fbtraceId}` : null,
+      ].filter(Boolean)
 
       toast.error('Falha no teste de conexão', {
-        description: hint ? `${msg}. ${hint}` : msg,
+        description: descriptionParts.join('\n'),
       });
     } finally {
       setIsTestingConnection(false);

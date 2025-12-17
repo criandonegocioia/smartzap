@@ -1,6 +1,103 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getWhatsAppCredentials } from '@/lib/whatsapp-credentials'
 
+type GraphApiError = {
+  message?: string
+  type?: string
+  code?: number
+  error_subcode?: number
+  fbtrace_id?: string
+}
+
+function normalizeGraphApiError(payload: any): GraphApiError | null {
+  const err = payload?.error || payload
+  if (!err || typeof err !== 'object') return null
+  return {
+    message: typeof err.message === 'string' ? err.message : undefined,
+    type: typeof err.type === 'string' ? err.type : undefined,
+    code: typeof err.code === 'number' ? err.code : undefined,
+    error_subcode: typeof err.error_subcode === 'number' ? err.error_subcode : undefined,
+    fbtrace_id: typeof err.fbtrace_id === 'string' ? err.fbtrace_id : undefined,
+  }
+}
+
+function buildConnectionTroubleshooting(opts: {
+  graphError: GraphApiError | null
+  phoneNumberId: string
+  businessAccountIdInput?: string
+}) {
+  const ge = opts.graphError
+  const msg = (ge?.message || '').toLowerCase()
+
+  // Meta-side: App arquivado/desativado
+  if (msg.includes('api access deactivated') || msg.includes('to unarchive') || msg.includes('unarchive')) {
+    return {
+      kind: 'meta_app_deactivated' as const,
+      title: 'API da Meta desativada (App arquivado)'
+      ,
+      summary:
+        'A Meta desativou o acesso à API para o App que emitiu este token (geralmente porque o App foi arquivado).',
+      nextSteps: [
+        'Acesse https://developers.facebook.com/apps e faça login.',
+        'Vá em “My Apps” e verifique se o App está “Archived”.',
+        'Desarquive/reative o App e gere um novo token.',
+        'Depois, volte no SmartZap e clique em “Testar Conexão”.',
+      ],
+      docs: 'https://developers.facebook.com/docs/graph-api',
+    }
+  }
+
+  // Token inválido/expirado
+  if (ge?.code === 190 || msg.includes('error validating access token') || msg.includes('session has expired')) {
+    return {
+      kind: 'token_invalid' as const,
+      title: 'Token inválido ou expirado',
+      summary:
+        'O token foi rejeitado pela Meta (expirado/invalidado ou copiado incorretamente).',
+      nextSteps: [
+        'Gere um novo token (recomendado: System User no Business Manager).',
+        'Garanta os escopos whatsapp_business_management e whatsapp_business_messaging.',
+        'Atribua os ativos (WABA + Phone Number) ao System User antes de gerar o token.',
+      ],
+      docs: 'https://developers.facebook.com/docs/facebook-login/access-tokens/debugging-and-error-handling',
+    }
+  }
+
+  // Erro clássico: objeto não existe / sem permissão / operação não suportada
+  // (frequente quando o usuário colocou o ID errado ou não atribuiu o ativo ao token)
+  const isUnsupportedGet = msg.includes('unsupported get request')
+  const isObjMissingOrNoPerm = isUnsupportedGet || ge?.code === 100 || ge?.error_subcode === 33
+  if (isObjMissingOrNoPerm) {
+    const providedWaba = (opts.businessAccountIdInput || '').trim()
+    return {
+      kind: 'object_missing_or_no_permission' as const,
+      title: 'ID incorreto ou token sem acesso ao ativo',
+      summary:
+        'A Meta não conseguiu carregar o objeto informado (Phone Number ID). Isso acontece quando o ID está errado, o token não tem acesso ao ativo, ou o App/token não tem permissão para essa operação.',
+      nextSteps: [
+        `Confirme se o Phone Number ID está correto (o valor atual é ${opts.phoneNumberId}).`,
+        providedWaba ? `Confirme se o WABA ID está correto (o valor atual é ${providedWaba}).` : 'Confirme também o WABA ID (Business Account ID).',
+        'Se estiver usando System User, atribua os ativos (WABA + Phone Number) ao System User no Business Manager.',
+        'Gere novamente o token com os escopos whatsapp_business_management e whatsapp_business_messaging.',
+        'Depois, rode “Diagnóstico Meta” em /settings/meta-diagnostics para ver “provas” (WABA acessível, Phone acessível, etc.).',
+      ],
+      docs: 'https://developers.facebook.com/docs/whatsapp/cloud-api',
+    }
+  }
+
+  return {
+    kind: 'unknown' as const,
+    title: 'Falha ao testar conexão',
+    summary: 'A Meta rejeitou a chamada, mas não conseguimos classificar o motivo com segurança.',
+    nextSteps: [
+      'Abra o Diagnóstico Meta em /settings/meta-diagnostics e copie o “Support Packet”.',
+      'Verifique se o token tem os escopos whatsapp_business_management e whatsapp_business_messaging.',
+      'Verifique se o token tem acesso ao WABA e ao Phone Number configurados.',
+    ],
+    docs: 'https://developers.facebook.com/docs/graph-api',
+  }
+}
+
 function isMaskedToken(token: unknown): boolean {
   if (typeof token !== 'string') return false
   const t = token.trim()
@@ -53,9 +150,15 @@ export async function POST(request: NextRequest) {
     const data = await res.json().catch(() => ({}))
 
     if (!res.ok) {
-      const message = (data as any)?.error?.message || 'Meta API rejeitou as credenciais'
-      const code = (data as any)?.error?.code
-      const errorSubcode = (data as any)?.error?.error_subcode
+      const ge = normalizeGraphApiError(data)
+      const message = ge?.message || 'Meta API rejeitou as credenciais'
+      const code = ge?.code
+      const errorSubcode = ge?.error_subcode
+      const troubleshooting = buildConnectionTroubleshooting({
+        graphError: ge,
+        phoneNumberId,
+        businessAccountIdInput,
+      })
 
       return NextResponse.json(
         {
@@ -63,6 +166,14 @@ export async function POST(request: NextRequest) {
           error: message,
           code,
           errorSubcode,
+          details: {
+            hintTitle: troubleshooting.title,
+            hint: troubleshooting.summary,
+            nextSteps: troubleshooting.nextSteps,
+            docs: troubleshooting.docs,
+            fbtraceId: ge?.fbtrace_id || null,
+            raw: (data as any)?.error || data,
+          },
         },
         { status: 401 }
       )
