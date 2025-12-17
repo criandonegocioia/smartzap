@@ -18,7 +18,8 @@ export const useCampaignWizardController = () => {
   // Form State
   const [name, setName] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
-  const [recipientSource, setRecipientSource] = useState<'all' | 'specific' | 'test' | null>(null);
+  const [recipientSource, setRecipientSource] = useState<'all' | 'specific' | 'test' | 'tag' | null>(null);
+  const [selectedTag, setSelectedTag] = useState<string>('');
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   const [contactSearchTerm, setContactSearchTerm] = useState('');
 
@@ -134,11 +135,22 @@ export const useCampaignWizardController = () => {
       setSelectedContactIds(contactsQuery.data.map(c => c.id));
     } else if (recipientSource === 'specific') {
       setSelectedContactIds([]);
+    } else if (recipientSource === 'tag') {
+      const tag = (selectedTag || '').trim();
+      if (!tag || !contactsQuery.data) {
+        setSelectedContactIds([]);
+        return;
+      }
+      setSelectedContactIds(
+        contactsQuery.data
+          .filter(c => Array.isArray((c as any).tags) && (c as any).tags.includes(tag))
+          .map(c => c.id)
+      );
     } else if (recipientSource === 'test') {
       // Test mode doesn't use contact IDs - handled separately
       setSelectedContactIds([]);
     }
-  }, [recipientSource, contactsQuery.data]);
+  }, [recipientSource, contactsQuery.data, selectedTag]);
 
   // --- Mutations ---
   const createCampaignMutation = useMutation({
@@ -218,6 +230,21 @@ export const useCampaignWizardController = () => {
   const totalContacts = allContacts.length;
   const selectedContacts = allContacts.filter(c => selectedContactIds.includes(c.id));
 
+  // Tags disponíveis (derivado dos próprios contatos)
+  const availableTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    allContacts.forEach((c: any) => {
+      if (Array.isArray(c.tags)) c.tags.forEach((t: any) => typeof t === 'string' && t.trim() && tagSet.add(t.trim()));
+    });
+    return Array.from(tagSet).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [allContacts]);
+
+  const contactsByTag = useMemo(() => {
+    const tag = (selectedTag || '').trim();
+    if (!tag) return [] as typeof allContacts;
+    return allContacts.filter((c: any) => Array.isArray(c.tags) && c.tags.includes(tag));
+  }, [allContacts, selectedTag]);
+
   // Filter contacts by search term (name, phone, email, tags)
   const filteredContacts = useMemo(() => {
     if (!contactSearchTerm.trim()) return allContacts;
@@ -232,25 +259,39 @@ export const useCampaignWizardController = () => {
   }, [allContacts, contactSearchTerm]);
 
   // Calculate recipient count - 1 for test mode, otherwise selected contacts
-  const recipientCount = recipientSource === 'test' && testContact ? 1 : selectedContacts.length;
+  const recipientCount =
+    recipientSource === 'test' && testContact
+      ? 1
+      : recipientSource === 'tag'
+        ? contactsByTag.length
+        : selectedContacts.length;
 
   // Get contacts for sending - test contact or selected contacts (includes email and custom_fields for variable resolution)
-  const contactsForSending = recipientSource === 'test' && testContact
-    ? (() => {
-      const testId = resolvedTestContactId;
-      if (!testId) return [];
-      return [
-        {
-          id: testId,
-          contactId: testId,
-          name: testContact.name || testContact.phone,
-          phone: testContact.phone,
-          email: (testContact as any).email || '',
-          custom_fields: (testContact as any).custom_fields || {},
-        },
-      ];
-    })()
-    : selectedContacts.map(c => ({ id: c.id, contactId: c.id, name: c.name || c.phone, phone: c.phone, email: c.email || '', custom_fields: c.custom_fields || {} }));
+  const contactsForSending =
+    recipientSource === 'test' && testContact
+      ? (() => {
+        const testId = resolvedTestContactId;
+        if (!testId) return [];
+        return [
+          {
+            id: testId,
+            contactId: testId,
+            name: testContact.name || testContact.phone,
+            phone: testContact.phone,
+            email: (testContact as any).email || '',
+            custom_fields: (testContact as any).custom_fields || {},
+          },
+        ];
+      })()
+      : (recipientSource === 'tag' ? contactsByTag : selectedContacts)
+        .map((c: any) => ({
+          id: c.id,
+          contactId: c.id,
+          name: c.name || c.phone,
+          phone: c.phone,
+          email: c.email || '',
+          custom_fields: c.custom_fields || {},
+        }));
 
   const availableTemplates = templatesQuery.data || [];
   const selectedTemplate = availableTemplates.find(t => t.id === selectedTemplateId);
@@ -399,6 +440,18 @@ export const useCampaignWizardController = () => {
       if (recipientSource === 'specific' && selectedContactIds.length === 0) {
         toast.error('Por favor selecione pelo menos um contato');
         return;
+      }
+      if (recipientSource === 'tag') {
+        const tag = (selectedTag || '').trim();
+        if (!tag) {
+          toast.error('Selecione uma tag para definir o público');
+          return;
+        }
+        const count = (contactsQuery.data || []).filter((c: any) => Array.isArray(c.tags) && c.tags.includes(tag)).length;
+        if (count === 0) {
+          toast.error('Nenhum contato encontrado com essa tag');
+          return;
+        }
       }
       if (recipientSource === 'test' && !testContact) {
         toast.error('Contato de teste não configurado. Configure em Ajustes.');
@@ -583,6 +636,9 @@ export const useCampaignWizardController = () => {
     setSelectedTemplateId,
     recipientSource,
     setRecipientSource,
+    availableTags,
+    selectedTag,
+    setSelectedTag,
     totalContacts,
     recipientCount,
     allContacts,

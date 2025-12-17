@@ -40,6 +40,7 @@ import {
   ShieldAlert,
   Smartphone,
   Sparkles,
+  Tag,
   TrendingUp,
   Users,
   Wand2,
@@ -73,8 +74,11 @@ interface CampaignWizardViewProps {
   setName: (name: string) => void;
   selectedTemplateId: string;
   setSelectedTemplateId: (id: string) => void;
-  recipientSource: 'all' | 'specific' | 'test' | null;
-  setRecipientSource: (source: 'all' | 'specific' | 'test' | null) => void;
+  recipientSource: 'all' | 'specific' | 'test' | 'tag' | null;
+  setRecipientSource: (source: 'all' | 'specific' | 'test' | 'tag' | null) => void;
+  availableTags: string[];
+  selectedTag: string;
+  setSelectedTag: (tag: string) => void;
   totalContacts: number;
   recipientCount: number;
   allContacts: Contact[];
@@ -430,6 +434,9 @@ export const CampaignWizardView: React.FC<CampaignWizardViewProps> = ({
   setSelectedTemplateId,
   recipientSource,
   setRecipientSource,
+  availableTags,
+  selectedTag,
+  setSelectedTag,
   totalContacts,
   recipientCount,
   allContacts,
@@ -1354,7 +1361,7 @@ export const CampaignWizardView: React.FC<CampaignWizardViewProps> = ({
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* All Contacts - Shows error style when exceeds limit */}
                   <button
                     onClick={() => setRecipientSource('all')}
@@ -1454,7 +1461,77 @@ export const CampaignWizardView: React.FC<CampaignWizardViewProps> = ({
                       )}
                     </div>
                   </button>
+
+                  {/* By Tag */}
+                  <button
+                    onClick={() => setRecipientSource('tag')}
+                    className={`relative p-6 rounded-2xl border transition-all duration-200 flex flex-col items-center justify-center gap-4 ${recipientSource === 'tag'
+                      ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.1)] scale-105'
+                      : 'bg-zinc-900/50 border-white/10 hover:bg-zinc-900 hover:border-white/20 text-gray-300'
+                      }`}
+                  >
+                    {recipientSource === 'tag' && (
+                      <div className="absolute top-3 right-3 text-black">
+                        <CheckCircleFilled size={20} />
+                      </div>
+                    )}
+                    <div className={`p-4 rounded-full ${recipientSource === 'tag'
+                      ? 'bg-gray-200 text-black'
+                      : 'bg-zinc-800 text-gray-400'
+                      }`}>
+                      <Tag size={24} />
+                    </div>
+                    <div className="text-center">
+                      <h3 className="font-bold text-sm">Por Tag</h3>
+                      <p className={`text-xs mt-1 ${recipientSource === 'tag' ? 'text-gray-600' : 'text-gray-500'}`}>
+                        {recipientSource === 'tag'
+                          ? (selectedTag ? `${recipientCount} contatos` : 'Escolher uma tag')
+                          : 'Enviar para uma tag'
+                        }
+                      </p>
+                      {recipientSource === 'tag' && selectedTemplate && selectedTag && recipientCount > 0 && (
+                        <p className="text-xs mt-2 font-bold text-primary-600">
+                          {getPricingBreakdown(selectedTemplate.category, recipientCount, 0, exchangeRate ?? 5.00).totalBRLFormatted}
+                        </p>
+                      )}
+                    </div>
+                  </button>
                 </div>
+
+                {/* Tag Selection */}
+                {recipientSource === 'tag' && (
+                  <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 mt-6 animate-in zoom-in duration-300">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-white font-bold text-sm">Selecionar Tag</h4>
+                      <span className="text-xs text-gray-500">
+                        {selectedTag ? `${recipientCount} contato(s)` : `${availableTags.length} tag(s)`}
+                      </span>
+                    </div>
+
+                    <select
+                      value={selectedTag}
+                      onChange={(e) => setSelectedTag(e.target.value)}
+                      className="w-full h-10 rounded-lg bg-zinc-800 border border-white/10 px-3 text-sm text-white outline-none focus:border-primary-500 transition-colors"
+                    >
+                      <option value="">Selecione uma tag…</option>
+                      {availableTags.map((tag) => (
+                        <option key={tag} value={tag}>
+                          {tag}
+                        </option>
+                      ))}
+                    </select>
+
+                    {selectedTag && recipientCount === 0 ? (
+                      <p className="text-xs text-red-400 mt-3">Nenhum contato encontrado com a tag “{selectedTag}”.</p>
+                    ) : selectedTag ? (
+                      <p className="text-xs text-gray-500 mt-3">
+                        Esta campanha será enviada para todos os contatos que possuem a tag “{selectedTag}”.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-3">Escolha uma tag para definir o público.</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Contact Selection List */}
                 {recipientSource === 'specific' && (
@@ -1623,7 +1700,9 @@ export const CampaignWizardView: React.FC<CampaignWizardViewProps> = ({
                           ? `🧪 Contato de Teste (${testContact?.name})`
                           : recipientSource === 'all'
                             ? 'Todos os Contatos'
-                            : 'Contatos Selecionados'
+                            : recipientSource === 'tag'
+                              ? (selectedTag ? `Tag: ${selectedTag}` : 'Por Tag')
+                              : 'Contatos Selecionados'
                         } ({recipientCount})
                       </span>
                       <button onClick={() => setStep(2)} className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-primary-400 transition-all"><small>Editar</small></button>

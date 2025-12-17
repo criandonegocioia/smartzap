@@ -16,6 +16,9 @@ export default function NewCampaignPage() {
       setSelectedTemplateId={controller.setSelectedTemplateId}
       recipientSource={controller.recipientSource}
       setRecipientSource={controller.setRecipientSource}
+      availableTags={controller.availableTags}
+      selectedTag={controller.selectedTag}
+      setSelectedTag={controller.setSelectedTag}
       totalContacts={controller.totalContacts}
       recipientCount={controller.recipientCount}
       allContacts={controller.allContacts}
