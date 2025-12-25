@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/builder/útils";
+import { cn } from "@/lib/builder/utils";
 
 type PreviewProps = {
   actionType: string;

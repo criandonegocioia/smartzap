@@ -27,7 +27,7 @@ import {
   integrationsVersionAtom,
 } from "@/lib/builder/integrations-store";
 import type { IntegrationType } from "@/lib/builder/types/integration";
-import { cn } from "@/lib/builder/útils";
+import { cn } from "@/lib/builder/utils";
 import { getIntegration } from "@/lib/builder/plugins";
 
 const WHATSAPP_GLOBAL_INTEGRATION_ID = "whatsapp-global";

@@ -24,7 +24,7 @@ import {
   integrationIdsAtom,
   integrationsLoadedAtom,
 } from "@/lib/builder/integrations-store";
-import { cn } from "@/lib/builder/útils";
+import { cn } from "@/lib/builder/utils";
 import {
   executionLogsAtom,
   pendingIntegrationNodesAtom,

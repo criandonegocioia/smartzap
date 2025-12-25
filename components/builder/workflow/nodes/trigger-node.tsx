@@ -8,7 +8,7 @@ import {
   NodeDescription,
   NodeTitle,
 } from "@/components/builder/ai-elements/node";
-import { cn } from "@/lib/builder/útils";
+import { cn } from "@/lib/builder/utils";
 import type { WorkflowNodeData } from "@/lib/builder/workflow-store";
 
 type TriggerNodeProps = NodeProps & {

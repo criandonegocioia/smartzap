@@ -4,7 +4,7 @@ import { useAtom } from "jotai";
 import { Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { cn } from "@/lib/builder/útils";
+import { cn } from "@/lib/builder/utils";
 import { edgesAtom, nodesAtom, type WorkflowNode } from "@/lib/builder/workflow-store";
 import { findActionById } from "@/lib/builder/plugins";
 

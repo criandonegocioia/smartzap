@@ -28,7 +28,7 @@ import {
   TooltipTrigger,
 } from "@/components/builder/ui/tooltip";
 import { useIsTouch } from "@/hooks/use-touch";
-import { cn } from "@/lib/builder/útils";
+import { cn } from "@/lib/builder/utils";
 import { getAllActions } from "@/lib/builder/plugins";
 
 type ActionType = {

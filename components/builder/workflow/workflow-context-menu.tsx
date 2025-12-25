@@ -7,7 +7,7 @@ import { nanoid } from "nanoid";
 import { useCallback, useEffect, useRef } from "react";
 import { ConfirmOverlay } from "@/components/builder/overlays/confirm-overlay";
 import { useOverlay } from "@/components/builder/overlays/overlay-provider";
-import { cn } from "@/lib/builder/útils";
+import { cn } from "@/lib/builder/utils";
 import {
   addNodeAtom,
   deleteEdgeAtom,
