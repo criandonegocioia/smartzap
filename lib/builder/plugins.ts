@@ -109,11 +109,21 @@ const integrations: IntegrationPlugin[] = [
         stepImportPath: "send-message",
         configFields: [
           {
+            key: "toSource",
+            label: "Recipient",
+            type: "select",
+            options: [
+              { label: "From inbound message", value: "inbound" },
+              { label: "Manual number", value: "manual" },
+            ],
+            defaultValue: "inbound",
+          },
+          {
             key: "to",
             label: "To",
             type: "template-input",
             placeholder: "+5511999999999",
-            required: true,
+            showWhen: { field: "toSource", equals: "manual" },
           },
           {
             key: "message",

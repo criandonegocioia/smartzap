@@ -422,7 +422,7 @@ const SidebarItem = ({ href, icon: Icon, label, isActive, collapsed, onClick, on
         onClick={onClick}
         onMouseEnter={onMouseEnter}
         title={label}
-        className={`flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl transition-all duration-200 mb-1 ${isActive
+        className={`flex items-center ${collapsed ? 'h-10 w-10 justify-center px-0' : 'gap-3 px-4 py-3'} rounded-xl transition-all duration-200 mb-1 ${isActive
             ? 'bg-primary-500/10 text-primary-400 font-medium border border-primary-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
             : 'text-gray-400 hover:bg-white/5 hover:text-white'
             }`}
@@ -693,16 +693,16 @@ export function DashboardShell({
                         {!isSidebarCollapsed && (
                             <div>
                                 <span className="text-xl font-bold text-white tracking-tight block">SmartZap</span>
-                                <span className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">Workspace</span>
+                                {/* Workspace label removed to reduce visual noise */}
                             </div>
                         )}
                         <button
                             type="button"
-                            className="ml-auto hidden lg:inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                            className="ml-auto hidden lg:inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
                             onClick={() => setIsSidebarCollapsed((prev) => !prev)}
                             title={isSidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
                         >
-                            {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+                            {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
                         </button>
                         <button
                             className="ml-auto lg:hidden"
@@ -717,11 +717,11 @@ export function DashboardShell({
                         <div>
                             <PrefetchLink
                                 href="/campaigns/new"
-                                className={`group relative inline-flex items-center justify-center gap-2 ${isSidebarCollapsed ? 'h-11 w-11 px-0' : 'px-5 py-3'} rounded-xl font-medium transition-all shadow-lg shadow-primary-900/20 overflow-hidden`}
+                                className={`group relative inline-flex items-center justify-center gap-2 ${isSidebarCollapsed ? 'h-10 w-10 px-0' : 'px-5 py-3'} rounded-xl font-medium transition-all shadow-lg shadow-primary-900/20 overflow-hidden`}
                             >
                                 <div className="absolute inset-0 bg-primary-600 group-hover:bg-primary-500 transition-colors"></div>
                                 <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
-                                <Plus size={18} className="relative z-10 text-white" />
+                                <Plus size={16} className="relative z-10 text-white" />
                                 {!isSidebarCollapsed && <span className="relative z-10 text-white">Nova Campanha</span>}
                             </PrefetchLink>
                         </div>
