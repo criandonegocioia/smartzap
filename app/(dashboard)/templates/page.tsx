@@ -6,7 +6,7 @@ import { useTemplatesController } from '@/hooks/useTemplates';
 import { useLeadFormsController } from '@/hooks/useLeadForms'
 import { TemplateListView } from '@/components/features/templates/TemplateListView';
 import { useTemplateProjectsQuery, useTemplateProjectMutations } from '@/hooks/useTemplateProjects';
-import { Loader2, Plus, Folder, Search, RefreshCw, CheckCircle, AlertTriangle, Trash2, LayoutGrid, Sparkles, Zap, Workflow, FileText } from 'lucide-react';
+import { Loader2, Plus, Folder, Search, RefreshCw, CheckCircle, AlertTriangle, Trash2, LayoutGrid, Sparkles, Zap, Workflow, FileText, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Page, PageActions, PageDescription, PageHeader, PageTitle } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
@@ -297,6 +297,14 @@ export default function TemplatesPage() {
                   className="bg-white text-black hover:bg-gray-200"
                 >
                   {isCreatingFlow ? 'Criando…' : 'Criar MiniApp'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push('/submissions')}
+                  className="border-white/10 bg-zinc-950/40 hover:bg-white/5 text-gray-200"
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  Ver Submissões
                 </Button>
               </div>
             </div>

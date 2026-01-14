@@ -556,7 +556,6 @@ export function DashboardShell({
         { path: '/conversations', label: 'Conversas', icon: MessageCircle, hidden: true },
         { path: '/templates', label: 'Templates', icon: FileText },
         { path: '/contacts', label: 'Contatos', icon: Users },
-        { path: '/submissions', label: 'Submissões', icon: ClipboardList },
         { path: '/settings/ai', label: 'IA', icon: Sparkles },
         { path: '/settings', label: 'Configurações', icon: Settings },
     ].filter(item => !item.hidden)
