@@ -169,11 +169,25 @@ export const ContactListView: React.FC<ContactListViewProps> = ({
   // Export state and handler
   const [isExporting, setIsExporting] = useState(false);
 
-  const handleExport = () => {
+  const handleExport = async () => {
+    if (selectedIds.size === 0) return;
+
     setIsExporting(true);
     try {
-      // Export only selected contacts
-      const exportContacts = contacts.filter((c) => selectedIds.has(c.id));
+      let exportContacts: Contact[];
+
+      // Se há mais selecionados do que na página atual, buscar todos da API
+      const currentPageSelectedCount = contacts.filter((c) => selectedIds.has(c.id)).length;
+
+      if (selectedIds.size > currentPageSelectedCount) {
+        // Buscar todos os contatos e filtrar pelos selecionados
+        const { contactService } = await import('@/services/contactService');
+        const allContacts = await contactService.getAll();
+        exportContacts = allContacts.filter((c) => selectedIds.has(c.id));
+      } else {
+        // Usar apenas os da página atual
+        exportContacts = contacts.filter((c) => selectedIds.has(c.id));
+      }
 
       if (exportContacts.length === 0) {
         return;
@@ -220,8 +234,9 @@ export const ContactListView: React.FC<ContactListViewProps> = ({
         </div>
 
         <PageActions className="flex-wrap justify-start sm:justify-end">
-          {isSomeSelected && (
-            <>
+          {/* Ações de seleção + Import agrupados */}
+          <div className="flex items-center gap-2">
+            {isSomeSelected && (
               <Button
                 variant="outline"
                 onClick={handleExport}
@@ -231,25 +246,29 @@ export const ContactListView: React.FC<ContactListViewProps> = ({
               >
                 <Download size={18} aria-hidden="true" />
               </Button>
-              <Button
-                variant="destructive"
-                onClick={onBulkDeleteClick}
-                aria-label={`Excluir ${selectedIds.size} contato(s) selecionado(s)`}
-                title="Excluir selecionados"
-              >
-                <Trash2 size={18} aria-hidden="true" />
-              </Button>
-            </>
-          )}
+            )}
 
-          <Button
-            variant="outline"
-            onClick={() => setIsImportModalOpen(true)}
-            aria-label="Importar contatos via arquivo CSV"
-            title="Importar CSV"
-          >
-            <UploadCloud size={18} aria-hidden="true" />
-          </Button>
+            <Button
+              variant="outline"
+              onClick={() => setIsImportModalOpen(true)}
+              aria-label="Importar contatos via arquivo CSV"
+              title="Importar CSV"
+            >
+              <UploadCloud size={18} aria-hidden="true" />
+            </Button>
+          </div>
+
+          {/* Ação destrutiva separada visualmente */}
+          {isSomeSelected && (
+            <Button
+              variant="destructive"
+              onClick={onBulkDeleteClick}
+              aria-label={`Excluir ${selectedIds.size} contato(s) selecionado(s)`}
+              title="Excluir selecionados"
+            >
+              <Trash2 size={18} aria-hidden="true" />
+            </Button>
+          )}
 
           <CustomFieldsSheet
             entityType="contact"

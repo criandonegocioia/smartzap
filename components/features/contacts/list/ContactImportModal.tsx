@@ -163,10 +163,13 @@ export const ContactImportModal: React.FC<ContactImportModalProps> = ({
         const allTags = [...new Set([...rowTags, ...defaultTags])];
         if (allTags.length === 0) allTags.push('Importado');
 
+        // Email vazio deve ser undefined para passar na validação Zod
+        const emailValue = emailIdx !== -1 ? row[emailIdx]?.trim() : undefined;
+
         return {
           name: nameIdx !== -1 ? row[nameIdx] : undefined,
           phone,
-          email: emailIdx !== -1 ? row[emailIdx]?.trim() : undefined,
+          email: emailValue || undefined, // Converte "" para undefined
           tags: allTags,
           status: ContactStatus.UNKNOWN,
           custom_fields: rowCustomFields
