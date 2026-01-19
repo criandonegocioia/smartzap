@@ -61,7 +61,7 @@ interface CentralizedRealtimeProviderProps {
   children: ReactNode
   /**
    * Tables to subscribe to
-   * @default ['campaigns', 'contacts', 'templates', 'flows']
+   * @default ['campaigns', 'contacts', 'templates', 'flows', 'inbox_conversations', 'inbox_messages']
    */
   tables?: string[]
   /**
@@ -73,7 +73,8 @@ interface CentralizedRealtimeProviderProps {
 
 export function CentralizedRealtimeProvider({
   children,
-  tables = ['campaigns', 'contacts', 'templates', 'flows'],
+  // T072: Added inbox tables for real-time updates
+  tables = ['campaigns', 'contacts', 'templates', 'flows', 'inbox_conversations', 'inbox_messages'],
   debounceMs = 200,
 }: CentralizedRealtimeProviderProps) {
   const queryClient = useQueryClient()
@@ -142,6 +143,16 @@ export function CentralizedRealtimeProvider({
           }
           if (table === 'campaigns') {
             debouncedInvalidate(['campaignStats'])
+          }
+          // T072: Invalidate inbox queries on inbox table changes
+          if (table === 'inbox_conversations') {
+            debouncedInvalidate(['inbox-conversations'])
+            debouncedInvalidate(['inbox-unread-count'])
+          }
+          if (table === 'inbox_messages') {
+            debouncedInvalidate(['inbox-messages'])
+            // Also invalidate unread count when new messages arrive
+            debouncedInvalidate(['inbox-unread-count'])
           }
         }
       )

@@ -503,6 +503,25 @@ export default function AICenterPage() {
         </div>
       )}
 
+      {/* Quick link to AI Agents */}
+      <div className="mb-6">
+        <a
+          href="/settings/ai/agents"
+          className="group flex items-center justify-between rounded-2xl border border-white/10 bg-zinc-900/60 p-4 transition hover:border-emerald-500/30 hover:bg-emerald-500/5"
+        >
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl border border-white/10 bg-white/5 p-2 text-emerald-300">
+              <Bot className="size-5" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-white">Agentes de Atendimento</div>
+              <div className="text-xs text-gray-400">Configure os agentes IA para o Inbox</div>
+            </div>
+          </div>
+          <ChevronDown className="size-4 -rotate-90 text-gray-500 transition group-hover:text-emerald-300" />
+        </a>
+      </div>
+
       <div className="space-y-6">
         <section className="glass-panel rounded-2xl p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">

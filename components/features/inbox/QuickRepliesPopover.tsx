@@ -1,0 +1,160 @@
+'use client'
+
+/**
+ * T039: QuickRepliesPopover - Searchable list of quick replies
+ * Click to insert content into message input
+ */
+
+import React, { useState, useMemo } from 'react'
+import { Zap, Search, Plus, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import type { InboxQuickReply } from '@/types'
+
+export interface QuickRepliesPopoverProps {
+  quickReplies: InboxQuickReply[]
+  onSelect: (content: string) => void
+  isLoading?: boolean
+}
+
+export function QuickRepliesPopover({
+  quickReplies,
+  onSelect,
+  isLoading,
+}: QuickRepliesPopoverProps) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+
+  // Filter quick replies
+  const filtered = useMemo(() => {
+    if (!search.trim()) return quickReplies
+
+    const lowerSearch = search.toLowerCase()
+    return quickReplies.filter(
+      (qr) =>
+        qr.title.toLowerCase().includes(lowerSearch) ||
+        qr.content.toLowerCase().includes(lowerSearch) ||
+        qr.shortcut?.toLowerCase().includes(lowerSearch)
+    )
+  }, [quickReplies, search])
+
+  const handleSelect = (qr: InboxQuickReply) => {
+    onSelect(qr.content)
+    setOpen(false)
+    setSearch('')
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-zinc-400 hover:text-zinc-200"
+            >
+              <Zap className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Respostas rápidas</p>
+          </TooltipContent>
+        </Tooltip>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        side="top"
+        className="w-80 p-0"
+        sideOffset={8}
+      >
+        {/* Header */}
+        <div className="p-3 border-b border-zinc-800">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-medium text-white">Respostas Rápidas</h4>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+            <Input
+              type="text"
+              placeholder="Buscar..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-8 text-sm bg-zinc-900 border-zinc-800"
+              autoFocus
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* List */}
+        <ScrollArea className="max-h-[300px]">
+          {isLoading ? (
+            <div className="p-3 space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse space-y-1">
+                  <div className="h-4 w-1/3 bg-zinc-800 rounded" />
+                  <div className="h-3 w-2/3 bg-zinc-800 rounded" />
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="p-6 text-center">
+              <p className="text-sm text-zinc-500">
+                {search
+                  ? 'Nenhuma resposta encontrada'
+                  : 'Nenhuma resposta rápida cadastrada'}
+              </p>
+            </div>
+          ) : (
+            <div className="p-1">
+              {filtered.map((qr) => (
+                <button
+                  key={qr.id}
+                  onClick={() => handleSelect(qr)}
+                  className={cn(
+                    'w-full p-2 rounded-md text-left',
+                    'hover:bg-zinc-800 transition-colors'
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-white">
+                      {qr.title}
+                    </span>
+                    {qr.shortcut && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono">
+                        /{qr.shortcut}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-0.5 line-clamp-2">
+                    {qr.content}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
+  )
+}

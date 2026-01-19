@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { Bot, ChevronRight } from 'lucide-react';
 import { TestContactPanel } from './TestContactPanel';
 import { AutoSuppressionPanel } from './AutoSuppressionPanel';
 import { WorkflowExecutionPanel } from './WorkflowExecutionPanel';
@@ -11,6 +13,7 @@ import { FlowEndpointPanel } from './FlowEndpointPanel';
 import { CredentialsForm } from './CredentialsForm';
 import { NgrokDevPanel } from './NgrokDevPanel';
 import { DevModePanel } from './DevModePanel';
+import { InboxRetentionPanel } from './InboxRetentionPanel';
 import { useDevMode } from '@/components/providers/DevModeProvider';
 import type { SettingsViewProps } from './types';
 
@@ -254,6 +257,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         {/* Developer Mode Toggle - sempre visível */}
         <DevModePanel />
 
+        {/* T070: AI Agents Section - Link to AI Agents Configuration */}
+        {settings.isConnected && (
+          <div className="rounded-xl border border-white/5 bg-zinc-900/50 p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <Bot className="h-6 w-6 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-white">Agentes de IA</h3>
+                  <p className="text-sm text-zinc-400">
+                    Configure agentes de IA para responder automaticamente às conversas
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/settings/ai/agents"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-colors"
+              >
+                <span className="text-sm font-medium">Configurar</span>
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* T071: Inbox Retention Configuration */}
+        {settings.isConnected && <InboxRetentionPanel />}
 
         {/* Webhook Configuration Section */}
         {settings.isConnected && (webhookUrl || devWebhookUrl) && (

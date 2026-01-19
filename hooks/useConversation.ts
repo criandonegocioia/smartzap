@@ -1,0 +1,338 @@
+/**
+ * T029: useConversation - Single conversation with messages
+ * Provides conversation details and message operations with real-time updates
+ */
+
+import { useState, useCallback, useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
+import {
+  inboxService,
+  type SendMessageParams,
+  type UpdateConversationParams,
+} from '@/services/inboxService'
+import type { InboxConversation, InboxMessage, ConversationMode } from '@/types'
+import { CACHE, REALTIME } from '@/lib/constants'
+import { useRealtimeQuery } from './useRealtimeQuery'
+
+const CONVERSATION_KEY = 'inbox-conversation'
+const MESSAGES_KEY = 'inbox-messages'
+
+// Query key builders
+export const getConversationQueryKey = (id: string) => [CONVERSATION_KEY, id]
+export const getMessagesQueryKey = (conversationId: string) => [MESSAGES_KEY, conversationId]
+
+// =============================================================================
+// Conversation Detail Hook
+// =============================================================================
+
+export function useConversation(conversationId: string | null) {
+  const queryClient = useQueryClient()
+
+  // Conversation query with real-time updates
+  const conversationQuery = useRealtimeQuery<InboxConversation | null>({
+    queryKey: getConversationQueryKey(conversationId || ''),
+    queryFn: async () => {
+      if (!conversationId) return null
+      return inboxService.getConversation(conversationId)
+    },
+    enabled: !!conversationId,
+    staleTime: CACHE.campaigns,
+    // Real-time
+    table: 'inbox_conversations',
+    events: ['UPDATE'],
+    filter: conversationId ? `id=eq.${conversationId}` : undefined,
+    debounceMs: REALTIME.debounceDefault,
+  })
+
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: (params: UpdateConversationParams) =>
+      inboxService.updateConversation(conversationId!, params),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(getConversationQueryKey(conversationId!), updated)
+      // Also invalidate list
+      queryClient.invalidateQueries({ queryKey: ['inbox-conversations'] })
+    },
+  })
+
+  // Mark as read
+  const markAsReadMutation = useMutation({
+    mutationFn: () => inboxService.markAsRead(conversationId!),
+    onMutate: async () => {
+      // Optimistic update
+      queryClient.setQueryData<InboxConversation | null>(
+        getConversationQueryKey(conversationId!),
+        (old) => (old ? { ...old, unread_count: 0 } : old)
+      )
+    },
+  })
+
+  // T068: Pause automation
+  const pauseMutation = useMutation({
+    mutationFn: (params: { duration_minutes: number; reason?: string }) =>
+      inboxService.pauseAutomation(conversationId!, params.duration_minutes, params.reason),
+    onMutate: async (params) => {
+      // Optimistic update
+      const pauseUntil = new Date(Date.now() + params.duration_minutes * 60 * 1000).toISOString()
+      queryClient.setQueryData<InboxConversation | null>(
+        getConversationQueryKey(conversationId!),
+        (old) =>
+          old
+            ? {
+                ...old,
+                automation_paused_until: pauseUntil,
+                automation_paused_by: params.reason || 'manual',
+              }
+            : old
+      )
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inbox-conversations'] })
+    },
+    onError: () => {
+      // Revert on error
+      queryClient.invalidateQueries({ queryKey: getConversationQueryKey(conversationId!) })
+    },
+  })
+
+  // T068: Resume automation
+  const resumeMutation = useMutation({
+    mutationFn: () => inboxService.resumeAutomation(conversationId!),
+    onMutate: async () => {
+      // Optimistic update
+      queryClient.setQueryData<InboxConversation | null>(
+        getConversationQueryKey(conversationId!),
+        (old) =>
+          old
+            ? {
+                ...old,
+                automation_paused_until: null,
+                automation_paused_by: null,
+              }
+            : old
+      )
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inbox-conversations'] })
+    },
+    onError: () => {
+      // Revert on error
+      queryClient.invalidateQueries({ queryKey: getConversationQueryKey(conversationId!) })
+    },
+  })
+
+  // Auto mark as read when conversation is loaded
+  useEffect(() => {
+    if (conversationQuery.data?.unread_count && conversationQuery.data.unread_count > 0) {
+      markAsReadMutation.mutate()
+    }
+  }, [conversationId, conversationQuery.data?.unread_count])
+
+  return {
+    conversation: conversationQuery.data,
+    isLoading: conversationQuery.isLoading,
+    error: conversationQuery.error,
+
+    update: updateMutation.mutateAsync,
+    markAsRead: markAsReadMutation.mutateAsync,
+
+    // T068: Pause/Resume automation
+    pause: pauseMutation.mutateAsync,
+    resume: resumeMutation.mutateAsync,
+
+    isUpdating: updateMutation.isPending,
+    isMarkingAsRead: markAsReadMutation.isPending,
+    isPausing: pauseMutation.isPending,
+    isResuming: resumeMutation.isPending,
+  }
+}
+
+// =============================================================================
+// Messages Hook
+// =============================================================================
+
+export function useMessages(conversationId: string | null) {
+  const queryClient = useQueryClient()
+  const [isSending, setIsSending] = useState(false)
+
+  // Messages query with infinite scroll
+  const messagesQuery = useInfiniteQuery({
+    queryKey: getMessagesQueryKey(conversationId || ''),
+    queryFn: async ({ pageParam }) => {
+      if (!conversationId) return { messages: [], hasMore: false }
+      return inboxService.listMessages(conversationId, {
+        before: pageParam,
+        limit: 50,
+      })
+    },
+    enabled: !!conversationId,
+    getNextPageParam: (lastPage) => {
+      if (!lastPage.hasMore || lastPage.messages.length === 0) return undefined
+      // Get the oldest message timestamp for cursor-based pagination
+      const oldestMessage = lastPage.messages[0]
+      return oldestMessage?.created_at
+    },
+    initialPageParam: undefined as string | undefined,
+    staleTime: CACHE.campaigns,
+    refetchOnWindowFocus: false,
+  })
+
+  // Flatten messages from all pages
+  const messages: InboxMessage[] =
+    messagesQuery.data?.pages.flatMap((page) => page.messages) ?? []
+
+  // Send message mutation
+  const sendMutation = useMutation({
+    mutationFn: (params: SendMessageParams) =>
+      inboxService.sendMessage(conversationId!, params),
+    onMutate: async (params) => {
+      setIsSending(true)
+
+      // Optimistic update - add pending message
+      const optimisticMessage: InboxMessage = {
+        id: `temp-${Date.now()}`,
+        conversation_id: conversationId!,
+        direction: 'outbound',
+        content: params.content,
+        message_type: params.message_type || 'text',
+        delivery_status: 'pending',
+        created_at: new Date().toISOString(),
+        // Optional fields
+        media_url: null,
+        whatsapp_message_id: null,
+        ai_response_id: null,
+        ai_sentiment: null,
+        ai_sources: null,
+        payload: null,
+      }
+
+      queryClient.setQueryData(
+        getMessagesQueryKey(conversationId!),
+        (old: typeof messagesQuery.data) => {
+          if (!old) return old
+          return {
+            ...old,
+            pages: old.pages.map((page, index) =>
+              index === old.pages.length - 1
+                ? { ...page, messages: [...page.messages, optimisticMessage] }
+                : page
+            ),
+          }
+        }
+      )
+
+      return { optimisticMessage }
+    },
+    onSuccess: (newMessage, _, context) => {
+      setIsSending(false)
+
+      // Replace optimistic message with real one
+      queryClient.setQueryData(
+        getMessagesQueryKey(conversationId!),
+        (old: typeof messagesQuery.data) => {
+          if (!old) return old
+          return {
+            ...old,
+            pages: old.pages.map((page, index) =>
+              index === old.pages.length - 1
+                ? {
+                    ...page,
+                    messages: page.messages.map((m) =>
+                      m.id === context?.optimisticMessage.id ? newMessage : m
+                    ),
+                  }
+                : page
+            ),
+          }
+        }
+      )
+    },
+    onError: (_, __, context) => {
+      setIsSending(false)
+
+      // Remove optimistic message on error
+      queryClient.setQueryData(
+        getMessagesQueryKey(conversationId!),
+        (old: typeof messagesQuery.data) => {
+          if (!old) return old
+          return {
+            ...old,
+            pages: old.pages.map((page, index) =>
+              index === old.pages.length - 1
+                ? {
+                    ...page,
+                    messages: page.messages.filter(
+                      (m) => m.id !== context?.optimisticMessage.id
+                    ),
+                  }
+                : page
+            ),
+          }
+        }
+      )
+    },
+  })
+
+  // Load more (older messages)
+  const loadMore = useCallback(() => {
+    if (messagesQuery.hasNextPage && !messagesQuery.isFetchingNextPage) {
+      messagesQuery.fetchNextPage()
+    }
+  }, [messagesQuery])
+
+  // Refetch to get new messages
+  const refresh = useCallback(() => {
+    messagesQuery.refetch()
+  }, [messagesQuery])
+
+  return {
+    messages,
+    isLoading: messagesQuery.isLoading,
+    isLoadingMore: messagesQuery.isFetchingNextPage,
+    hasMore: messagesQuery.hasNextPage ?? false,
+    error: messagesQuery.error,
+
+    send: sendMutation.mutateAsync,
+    isSending,
+
+    loadMore,
+    refresh,
+  }
+}
+
+// =============================================================================
+// Combined Hook for convenience
+// =============================================================================
+
+export function useConversationWithMessages(conversationId: string | null) {
+  const conversation = useConversation(conversationId)
+  const messages = useMessages(conversationId)
+
+  return {
+    // Conversation
+    conversation: conversation.conversation,
+    isLoadingConversation: conversation.isLoading,
+    conversationError: conversation.error,
+    updateConversation: conversation.update,
+    markAsRead: conversation.markAsRead,
+
+    // T068: Pause/Resume automation
+    pauseAutomation: conversation.pause,
+    resumeAutomation: conversation.resume,
+    isPausing: conversation.isPausing,
+    isResuming: conversation.isResuming,
+
+    // Messages
+    messages: messages.messages,
+    isLoadingMessages: messages.isLoading,
+    isLoadingMore: messages.isLoadingMore,
+    hasMoreMessages: messages.hasMore,
+    messagesError: messages.error,
+
+    sendMessage: messages.send,
+    isSending: messages.isSending,
+
+    loadMoreMessages: messages.loadMore,
+    refreshMessages: messages.refresh,
+  }
+}

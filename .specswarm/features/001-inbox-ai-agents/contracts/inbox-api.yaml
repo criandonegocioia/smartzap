@@ -1,0 +1,482 @@
+openapi: 3.0.3
+info:
+  title: SmartZap Inbox API
+  description: API for Inbox and AI Agents functionality
+  version: 1.0.0
+
+paths:
+  /api/inbox/conversations:
+    get:
+      summary: List conversations
+      description: Get paginated list of conversations with optional filters
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, closed]
+        - name: mode
+          in: query
+          schema:
+            type: string
+            enum: [bot, human]
+        - name: label
+          in: query
+          schema:
+            type: string
+          description: Filter by label ID
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by phone or contact name
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InboxConversation'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  totalPages:
+                    type: integer
+
+  /api/inbox/conversations/{id}:
+    get:
+      summary: Get conversation details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Conversation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboxConversation'
+        '404':
+          description: Conversation not found
+
+    patch:
+      summary: Update conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [open, closed]
+                mode:
+                  type: string
+                  enum: [bot, human]
+                priority:
+                  type: string
+                  enum: [low, normal, high, urgent]
+                ai_agent_id:
+                  type: string
+                  format: uuid
+                labels:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: Updated conversation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboxConversation'
+
+  /api/inbox/conversations/{id}/messages:
+    get:
+      summary: Get conversation messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: before
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Cursor for pagination (get messages before this timestamp)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InboxMessage'
+                  hasMore:
+                    type: boolean
+
+    post:
+      summary: Send message
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  maxLength: 4096
+                message_type:
+                  type: string
+                  enum: [text, template]
+                  default: text
+                template_name:
+                  type: string
+                  description: Required if message_type is template
+                template_params:
+                  type: object
+                  description: Template parameters
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboxMessage'
+        '400':
+          description: Invalid request
+
+  /api/inbox/conversations/{id}/pause:
+    post:
+      summary: Pause automation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - minutes
+              properties:
+                minutes:
+                  type: integer
+                  minimum: 1
+                  maximum: 1440
+                  description: Pause duration in minutes
+      responses:
+        '200':
+          description: Automation paused
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paused_until:
+                    type: string
+                    format: date-time
+
+  /api/inbox/conversations/{id}/resume:
+    post:
+      summary: Resume automation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Automation resumed
+
+  /api/inbox/conversations/{id}/read:
+    post:
+      summary: Mark conversation as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Marked as read
+
+  /api/inbox/labels:
+    get:
+      summary: List labels
+      responses:
+        '200':
+          description: List of labels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InboxLabel'
+
+    post:
+      summary: Create label
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  maxLength: 50
+                color:
+                  type: string
+                  pattern: '^#[0-9A-Fa-f]{6}$'
+      responses:
+        '201':
+          description: Label created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboxLabel'
+
+  /api/inbox/quick-replies:
+    get:
+      summary: List quick replies
+      responses:
+        '200':
+          description: List of quick replies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InboxQuickReply'
+
+    post:
+      summary: Create quick reply
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - content
+              properties:
+                title:
+                  type: string
+                  maxLength: 100
+                content:
+                  type: string
+                  maxLength: 4096
+                shortcut:
+                  type: string
+                  maxLength: 20
+      responses:
+        '201':
+          description: Quick reply created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboxQuickReply'
+
+components:
+  schemas:
+    InboxConversation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        contact_id:
+          type: string
+          format: uuid
+          nullable: true
+        ai_agent_id:
+          type: string
+          format: uuid
+          nullable: true
+        phone:
+          type: string
+        status:
+          type: string
+          enum: [open, closed]
+        mode:
+          type: string
+          enum: [bot, human]
+        priority:
+          type: string
+          enum: [low, normal, high, urgent]
+        unread_count:
+          type: integer
+        total_messages:
+          type: integer
+        last_message_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_message_preview:
+          type: string
+          nullable: true
+        automation_paused_until:
+          type: string
+          format: date-time
+          nullable: true
+        handoff_summary:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        contact:
+          $ref: '#/components/schemas/Contact'
+        labels:
+          type: array
+          items:
+            $ref: '#/components/schemas/InboxLabel'
+
+    InboxMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        conversation_id:
+          type: string
+          format: uuid
+        direction:
+          type: string
+          enum: [inbound, outbound]
+        content:
+          type: string
+        message_type:
+          type: string
+          enum: [text, image, audio, video, document, template]
+        media_url:
+          type: string
+          nullable: true
+        delivery_status:
+          type: string
+          enum: [pending, sent, delivered, read, failed]
+        ai_sentiment:
+          type: string
+          enum: [positive, neutral, negative, frustrated]
+          nullable: true
+        ai_sources:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+              content:
+                type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    InboxLabel:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        color:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    InboxQuickReply:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        content:
+          type: string
+        shortcut:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    Contact:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        phone:
+          type: string
+        name:
+          type: string
+          nullable: true

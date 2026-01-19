@@ -1,0 +1,118 @@
+/**
+ * T053: AI Agents API - List and Create
+ * GET /api/ai-agents - List all AI agents
+ * POST /api/ai-agents - Create new AI agent
+ */
+
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { createClient } from '@/lib/supabase-server'
+
+// Create agent schema
+const createAgentSchema = z.object({
+  name: z.string().min(1, 'Nome é obrigatório').max(100),
+  system_prompt: z.string().min(10, 'System prompt deve ter pelo menos 10 caracteres'),
+  model: z.string().default('gemini-2.0-flash'),
+  temperature: z.number().min(0).max(2).default(0.7),
+  max_tokens: z.number().int().min(100).max(8192).default(1024),
+  file_search_store_id: z.string().nullable().optional(),
+  is_active: z.boolean().default(true),
+  is_default: z.boolean().default(false),
+  debounce_ms: z.number().int().min(0).max(30000).default(5000),
+})
+
+/**
+ * GET /api/ai-agents
+ * List all AI agents
+ */
+export async function GET() {
+  try {
+    const supabase = await createClient()
+
+    const { data: agents, error } = await supabase
+      .from('ai_agents')
+      .select('*')
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('[AI Agents] Failed to list agents:', error)
+      return NextResponse.json(
+        { error: 'Failed to fetch AI agents' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json(agents)
+  } catch (error) {
+    console.error('[AI Agents] Error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * POST /api/ai-agents
+ * Create a new AI agent
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+
+    // Parse request body
+    const body = await request.json()
+    const parsed = createAgentSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid request body', details: parsed.error.flatten() },
+        { status: 400 }
+      )
+    }
+
+    const data = parsed.data
+
+    // If setting as default, unset other defaults first
+    if (data.is_default) {
+      await supabase
+        .from('ai_agents')
+        .update({ is_default: false })
+        .eq('is_default', true)
+    }
+
+    // Create agent
+    const { data: agent, error } = await supabase
+      .from('ai_agents')
+      .insert({
+        name: data.name,
+        system_prompt: data.system_prompt,
+        model: data.model,
+        temperature: data.temperature,
+        max_tokens: data.max_tokens,
+        file_search_store_id: data.file_search_store_id || null,
+        is_active: data.is_active,
+        is_default: data.is_default,
+        debounce_ms: data.debounce_ms,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('[AI Agents] Failed to create agent:', error)
+      return NextResponse.json(
+        { error: 'Failed to create AI agent' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json(agent, { status: 201 })
+  } catch (error) {
+    console.error('[AI Agents] Error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}

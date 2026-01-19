@@ -1,0 +1,208 @@
+/**
+ * T054: AI Agent API - Single Agent Operations
+ * GET /api/ai-agents/[id] - Get single agent
+ * PATCH /api/ai-agents/[id] - Update agent
+ * DELETE /api/ai-agents/[id] - Delete agent
+ */
+
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { createClient } from '@/lib/supabase-server'
+
+// Update agent schema (all fields optional)
+const updateAgentSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  system_prompt: z.string().min(10).optional(),
+  model: z.string().optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  max_tokens: z.number().int().min(100).max(8192).optional(),
+  file_search_store_id: z.string().nullable().optional(),
+  is_active: z.boolean().optional(),
+  is_default: z.boolean().optional(),
+  debounce_ms: z.number().int().min(0).max(30000).optional(),
+})
+
+/**
+ * GET /api/ai-agents/[id]
+ * Get a single AI agent
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const supabase = await createClient()
+
+    const { data: agent, error } = await supabase
+      .from('ai_agents')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (error || !agent) {
+      return NextResponse.json(
+        { error: 'AI agent not found' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json(agent)
+  } catch (error) {
+    console.error('[AI Agents] Error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * PATCH /api/ai-agents/[id]
+ * Update an AI agent
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const supabase = await createClient()
+
+    // Validate agent exists
+    const { data: existing, error: fetchError } = await supabase
+      .from('ai_agents')
+      .select('id, is_default')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !existing) {
+      return NextResponse.json(
+        { error: 'AI agent not found' },
+        { status: 404 }
+      )
+    }
+
+    // Parse request body
+    const body = await request.json()
+    const parsed = updateAgentSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid request body', details: parsed.error.flatten() },
+        { status: 400 }
+      )
+    }
+
+    const data = parsed.data
+
+    // If setting as default, unset other defaults first
+    if (data.is_default && !existing.is_default) {
+      await supabase
+        .from('ai_agents')
+        .update({ is_default: false })
+        .eq('is_default', true)
+    }
+
+    // Update agent
+    const { data: agent, error: updateError } = await supabase
+      .from('ai_agents')
+      .update({
+        ...data,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (updateError) {
+      console.error('[AI Agents] Failed to update agent:', updateError)
+      return NextResponse.json(
+        { error: 'Failed to update AI agent' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json(agent)
+  } catch (error) {
+    console.error('[AI Agents] Error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * DELETE /api/ai-agents/[id]
+ * Delete an AI agent
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const supabase = await createClient()
+
+    // Check if agent exists and if it's the default
+    const { data: existing, error: fetchError } = await supabase
+      .from('ai_agents')
+      .select('id, is_default, name')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !existing) {
+      return NextResponse.json(
+        { error: 'AI agent not found' },
+        { status: 404 }
+      )
+    }
+
+    // Prevent deleting the default agent
+    if (existing.is_default) {
+      return NextResponse.json(
+        { error: 'Não é possível excluir o agente padrão. Defina outro agente como padrão primeiro.' },
+        { status: 400 }
+      )
+    }
+
+    // Check if agent is assigned to any conversations
+    const { count: assignedCount } = await supabase
+      .from('inbox_conversations')
+      .select('id', { count: 'exact', head: true })
+      .eq('ai_agent_id', id)
+
+    if (assignedCount && assignedCount > 0) {
+      return NextResponse.json(
+        {
+          error: `Este agente está atribuído a ${assignedCount} conversa(s). Remova as atribuições primeiro.`,
+          assignedCount
+        },
+        { status: 400 }
+      )
+    }
+
+    // Delete agent
+    const { error: deleteError } = await supabase
+      .from('ai_agents')
+      .delete()
+      .eq('id', id)
+
+    if (deleteError) {
+      console.error('[AI Agents] Failed to delete agent:', deleteError)
+      return NextResponse.json(
+        { error: 'Failed to delete AI agent' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, deleted: existing.name })
+  } catch (error) {
+    console.error('[AI Agents] Error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}

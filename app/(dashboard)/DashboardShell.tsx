@@ -34,6 +34,7 @@ import { HealthStatus } from '@/lib/health-check'
 import { getPageWidthClass, PageLayoutProvider, usePageLayout } from '@/components/providers/PageLayoutProvider'
 import { campaignService, contactService, templateService, settingsService } from '@/services'
 import { dashboardService } from '@/services/dashboardService'
+import { useUnreadCount } from '@/hooks/useUnreadCount'
 
 // Setup step interface
 interface SetupStep {
@@ -441,6 +442,9 @@ export function DashboardShell({
     const { useRealtimeNotifications } = require('@/hooks/useRealtimeNotifications')
     useRealtimeNotifications({ enabled: true })
 
+    // T069: Unread count for inbox badge in sidebar
+    const { count: unreadCount } = useUnreadCount()
+
     const { data: authStatus } = useQuery({
         queryKey: ['authStatus'],
         queryFn: async () => {
@@ -551,16 +555,18 @@ export function DashboardShell({
             healthStatus.services.qstash.status !== 'ok')
 
     // Memoize navItems to prevent recreation on every render
+    // T069: Include dynamic unread badge for inbox
     const navItems = useMemo(() => [
         { path: '/', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/campaigns', label: 'Campanhas', icon: MessageSquare },
+        { path: '/inbox', label: 'Inbox', icon: MessageCircle, badge: unreadCount > 0 ? String(unreadCount > 99 ? '99+' : unreadCount) : undefined },
         { path: '/workflows', label: 'Workflow', icon: Workflow, badge: 'beta', disabled: true },
         { path: '/conversations', label: 'Conversas', icon: MessageCircle, hidden: true },
         { path: '/templates', label: 'Templates', icon: FileText },
         { path: '/contacts', label: 'Contatos', icon: Users },
         { path: '/settings/ai', label: 'IA', icon: Sparkles },
         { path: '/settings', label: 'Configurações', icon: Settings },
-    ].filter(item => !item.hidden), [])
+    ].filter(item => !item.hidden), [unreadCount])
 
     const getPageTitle = (path: string) => {
         if (path === '/') return 'Dashboard'
@@ -568,6 +574,8 @@ export function DashboardShell({
         if (path.startsWith('/campaigns/new')) return 'Nova Campanha'
         if (path.startsWith('/campaigns/')) return 'Detalhes da Campanha'
         if (path === '/workflows') return 'Workflows'
+        if (path === '/inbox') return 'Inbox'
+        if (path.startsWith('/inbox/')) return 'Conversa'
         if (path === '/conversations') return 'Conversas'
         if (path.startsWith('/conversations/')) return 'Conversa'
         if (path.startsWith('/builder')) return 'Workflow'
@@ -578,6 +586,7 @@ export function DashboardShell({
         if (path.startsWith('/contacts')) return 'Contatos'
         if (path.startsWith('/submissions')) return 'Submissões'
         if (path === '/settings/ai') return 'Central de IA'
+        if (path === '/settings/ai/agents') return 'Agentes IA'
         if (path.startsWith('/settings')) return 'Configurações'
         return 'App'
     }

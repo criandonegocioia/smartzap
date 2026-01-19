@@ -35,6 +35,12 @@ import { settingsDb } from '@/lib/supabase-db'
 import { ensureWorkflowRecord, getCompanyId } from '@/lib/builder/workflow-db'
 import { getPendingConversation } from '@/lib/builder/workflow-conversations'
 
+// T046-T048: Inbox integration
+import {
+  handleInboundMessage,
+  handleDeliveryStatus,
+} from '@/lib/inbox/inbox-webhook'
+
 // Get WhatsApp Access Token from centralized helper
 async function getWhatsAppAccessToken(): Promise<string | null> {
   const credentials = await getWhatsAppCredentials()
@@ -881,6 +887,19 @@ export async function POST(request: NextRequest) {
               })
             }
 
+            // T048: Update inbox message delivery status (best-effort)
+            try {
+              await handleDeliveryStatus({
+                messageId,
+                status: status as 'sent' | 'delivered' | 'read' | 'failed',
+                timestamp: eventTsIso || undefined,
+                errors: (statusUpdate as any)?.errors ?? undefined,
+              })
+            } catch (inboxError) {
+              // Best-effort: don't fail webhook if inbox update fails
+              console.warn('[Webhook] Failed to update inbox delivery status:', inboxError)
+            }
+
             if (eventId) {
               if (result.reason === 'applied') {
                 await markEventAttempt({
@@ -922,7 +941,27 @@ export async function POST(request: NextRequest) {
           const from = message.from
           const messageType = message.type
           const text = extractInboundText(message)
-          console.log(`📩 Incoming message from ${from}: ${messageType} (Chatbot disabled)${text ? ` | text="${text}"` : ''}`)
+          const phoneNumberId = change?.value?.metadata?.phone_number_id || null
+          console.log(`📩 Incoming message from ${from}: ${messageType}${text ? ` | text="${text}"` : ''}`)
+
+          // =================================================================
+          // T046-T047: Persist to Inbox and trigger AI if mode=bot
+          // =================================================================
+          try {
+            const inboxResult = await handleInboundMessage({
+              messageId: message.id || '',
+              from,
+              type: messageType,
+              text,
+              timestamp: message.timestamp,
+              mediaUrl: message.image?.url || message.video?.url || message.audio?.url || message.document?.url || null,
+              phoneNumberId: phoneNumberId || undefined,
+            })
+            console.log(`📥 Inbox: conversation=${inboxResult.conversationId}, message=${inboxResult.messageId}, ai=${inboxResult.triggeredAI}`)
+          } catch (inboxError) {
+            // Best-effort: don't fail webhook if inbox persist fails
+            console.warn('[Webhook] Failed to persist to inbox:', inboxError)
+          }
 
           // =================================================================
           // Workflow Builder (MVP): resume pending conversation if any
