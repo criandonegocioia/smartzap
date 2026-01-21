@@ -130,12 +130,18 @@ Todos devem ser NEUTROS e TRANSACIONAIS.
 ## REGRAS TÉCNICAS
 - Variáveis: APENAS números {{1}}, {{2}}, etc. (sequenciais)
 - {{1}} = nome do cliente (OBRIGATÓRIO)
-- Header: máximo 60 caracteres, informativo
 - Body: máximo 1024 caracteres (ideal: 150-300)
 - Footer: máximo 60 caracteres
 - Botão: máximo 25 caracteres (verbos neutros: Ver, Acessar, Rastrear)
 - Nome: snake_case, apenas letras minúsculas e underscore
 - 🚫 NUNCA comece ou termine texto com variável
+
+## ⚠️ REGRAS OBRIGATÓRIAS DE HEADER (Meta rejeita se violar)
+- Máximo 60 caracteres
+- 🚫 SEM EMOJIS (❌ "Pedido Confirmado ✅" → ✅ "Pedido Confirmado")
+- 🚫 SEM ASTERISCOS (❌ "*Atualização*" → ✅ "Atualização")
+- 🚫 SEM QUEBRAS DE LINHA (texto em uma única linha)
+- 🚫 SEM FORMATAÇÃO (❌ "_itálico_", "~riscado~", "`código`")
 
 ## FORMATO JSON (retorne APENAS JSON válido, sem markdown, sem explicações)
 [

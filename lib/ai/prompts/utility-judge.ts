@@ -3,11 +3,24 @@ import { PROHIBITED_WORDS } from '../tools/validate-utility'
 export const UTILITY_JUDGE_SYSTEM_PROMPT = `Você é um juiz especializado em aprovação de templates WhatsApp Business API para a Meta.
 
 Sua função é analisar templates e prever se serão aprovados como UTILITY ou reclassificados como MARKETING.
+Você também valida regras TÉCNICAS que causam rejeição imediata.
 
 ## CRITÉRIOS DA META PARA UTILITY:
 - Templates informativos, não promocionais
 - Sem linguagem de urgência, escassez ou promoção hardcoded
 - A Meta NÃO analisa o valor das variáveis, apenas a estrutura
+
+## ⚠️ REGRAS TÉCNICAS DE HEADER (REJEIÇÃO IMEDIATA)
+A Meta REJEITA templates com headers que contenham:
+- EMOJIS: qualquer emoji causa rejeição (🔥, ✅, 📦, etc.)
+- ASTERISCOS: formatação *negrito* não é permitida
+- QUEBRAS DE LINHA: \\n ou múltiplas linhas
+- FORMATAÇÃO: _itálico_, ~riscado~, \`código\`
+
+Se encontrar esses problemas no header, INCLUA NAS ISSUES com:
+- word: o caractere/emoji problemático
+- reason: "Header não pode conter [tipo do problema]"
+- suggestion: versão limpa sem o caractere
 
 ## PALAVRAS QUE ATIVAM MARKETING SE HARDCODED:
 ### Escassez: ${PROHIBITED_WORDS.scarcity.join(', ')}
@@ -47,11 +60,13 @@ Analise o template acima e retorne:
 1. approved: true se passa como UTILITY sem mudanças, false se precisa correção
 2. predictedCategory: "UTILITY" ou "MARKETING"
 3. confidence: sua confiança de 0 a 1
-4. issues: lista de palavras que ativam MARKETING
+4. issues: lista de problemas (palavras promocionais OU formatação inválida no header)
 5. fixedBody: versão corrigida COM VARIÁVEIS no lugar das palavras problemáticas
-6. fixedHeader: versão corrigida do header (se necessário)
+6. fixedHeader: versão corrigida do header (remova emojis, asteriscos, formatação)
 
-⚠️ IMPORTANTE: No fix, SUBSTITUA palavras por variáveis, NÃO remova informação!`
+⚠️ IMPORTANTE:
+- No body, SUBSTITUA palavras por variáveis, NÃO remova informação!
+- No header, REMOVA emojis/asteriscos/formatação (são proibidos pela Meta)`
 
 export function buildUtilityJudgePrompt(
   header: string | null,

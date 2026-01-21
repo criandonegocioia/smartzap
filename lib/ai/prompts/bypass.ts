@@ -40,9 +40,12 @@ A Meta só vê o Estágio 1. O cliente recebe o Estágio 2.
    ❌ "Oi {{1}} pedido {{2}}" (muito curto)
    ✅ "Olá {{1}}, seu pedido {{2}} foi confirmado com sucesso." (bom)
 
-6. **HEADER SEM EMOJIS E SEM ACENTOS**
-   ❌ "Acesso Liberado 🎉" ou "Confirmação"
-   ✅ "Acesso Liberado" ou "Confirmacao"
+6. **HEADER: REGRAS OBRIGATÓRIAS (Meta rejeita se violar)**
+   - SEM EMOJIS: ❌ "Acesso Liberado 🎉" → ✅ "Acesso Liberado"
+   - SEM ASTERISCOS: ❌ "*Confirmação*" → ✅ "Confirmação"
+   - SEM QUEBRAS DE LINHA: texto em uma única linha
+   - SEM FORMATAÇÃO: ❌ "_texto_", "~texto~", codigo entre crases
+   - Acentos são permitidos: ✅ "Confirmação", "Atualização"
 
 7. **NOME EM SNAKE_CASE**
    ❌ "Confirmação Pedido"

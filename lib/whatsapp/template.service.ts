@@ -151,9 +151,16 @@ export class TemplateService {
             }
 
             if (input.header.format === 'TEXT') {
-                const headerText = String(input.header.text || '').trim()
-                if (!headerText) {
+                const rawHeaderText = String(input.header.text || '').trim()
+                if (!rawHeaderText) {
                     throw new Error('Cabeçalho de texto exige um valor.')
+                }
+
+                // Sanitiza header removendo emojis, asteriscos, newlines, formatação
+                const headerText = this.sanitizeHeaderText(rawHeaderText)
+
+                if (headerText !== rawHeaderText) {
+                    console.log(`[TemplateService] Header sanitizado: "${rawHeaderText}" → "${headerText}"`)
                 }
 
                 headerComponent.text = isNamed ? headerText : this.renumberVariables(headerText)
@@ -533,6 +540,33 @@ export class TemplateService {
             const example = providedExample || String(fallback || '').trim() || `${fallbackPrefix}${idx + 1}`
             return { param_name: name, example }
         })
+    }
+
+    /**
+     * Sanitiza texto de header removendo caracteres proibidos pela Meta:
+     * - Emojis
+     * - Asteriscos (*)
+     * - Newlines (\n)
+     * - Caracteres de formatação (_, ~, `)
+     */
+    private sanitizeHeaderText(text: string): string {
+        return text
+            // Remove emojis (ranges Unicode)
+            .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Misc Symbols, Emoticons, etc
+            .replace(/[\u{2600}-\u{26FF}]/gu, '')    // Misc Symbols
+            .replace(/[\u{2700}-\u{27BF}]/gu, '')    // Dingbats
+            .replace(/[\u{FE00}-\u{FE0F}]/gu, '')    // Variation Selectors
+            .replace(/[\u{1F000}-\u{1F02F}]/gu, '')  // Mahjong, Domino
+            .replace(/[\u{1F0A0}-\u{1F0FF}]/gu, '')  // Playing Cards
+            // Remove asteriscos
+            .replace(/\*/g, '')
+            // Remove newlines (substitui por espaço)
+            .replace(/[\n\r]/g, ' ')
+            // Remove caracteres de formatação WhatsApp
+            .replace(/[_~`]/g, '')
+            // Limpa espaços múltiplos
+            .replace(/\s+/g, ' ')
+            .trim()
     }
 
     private renumberVariables(text: string): string {

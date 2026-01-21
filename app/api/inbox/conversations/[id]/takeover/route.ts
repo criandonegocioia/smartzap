@@ -20,7 +20,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       .from('inbox_conversations')
       .update({
         mode: 'human',
-        priority: null, // Limpa urgência
+        priority: 'normal', // Volta para prioridade normal
         automation_paused_until: null,
         automation_paused_by: null,
         updated_at: new Date().toISOString(),

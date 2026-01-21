@@ -111,18 +111,24 @@ Cada template deve ter uma abordagem única para o mesmo produto/oferta.
 ## REGRAS TÉCNICAS
 - Variáveis: APENAS números {{1}}, {{2}}, etc. (sequenciais)
 - {{1}} = nome do cliente (OBRIGATÓRIO em todos os templates)
-- Header: máximo 60 caracteres (headline impactante)
 - Body: máximo 1024 caracteres (ideal: 200-400)
 - Footer: máximo 60 caracteres (opcional)
 - Botão: máximo 25 caracteres (CTA forte!)
 - Nome: snake_case, apenas letras minúsculas e underscore
+
+## ⚠️ REGRAS OBRIGATÓRIAS DE HEADER (Meta rejeita se violar)
+- Máximo 60 caracteres
+- 🚫 SEM EMOJIS (❌ "Oferta Especial 🔥" → ✅ "Oferta Especial")
+- 🚫 SEM ASTERISCOS (❌ "*Promoção*" → ✅ "Promoção")
+- 🚫 SEM QUEBRAS DE LINHA (texto em uma única linha)
+- 🚫 SEM FORMATAÇÃO (❌ "_itálico_", "~riscado~", "`código`")
 
 ## FORMATO JSON (retorne APENAS JSON válido, sem markdown, sem explicações)
 [
   {
     "name": "nome_snake_case_descritivo",
     "content": "Texto persuasivo do body com emojis e formatação",
-    "header": { "format": "TEXT", "text": "Headline impactante 🔥" },
+    "header": { "format": "TEXT", "text": "Headline Impactante Aqui" },
     "footer": { "text": "Responda SAIR para cancelar." },
     "buttons": [
       { "type": "URL", "text": "CTA Forte Aqui", "url": "{{primaryUrl}}" }

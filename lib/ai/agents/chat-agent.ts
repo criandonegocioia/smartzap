@@ -325,8 +325,11 @@ export async function processChatAgent(
 
     console.log(`[chat-agent] Handoff enabled: ${handoffEnabled}`)
 
+    // Flag para indicar que já respondeu (para stopWhen)
+    let hasResponded = false
+
     const respondTool = tool({
-      description: 'Envia uma resposta estruturada ao usuário. SEMPRE use esta ferramenta para responder.',
+      description: 'Envia uma resposta estruturada ao usuário. Use APENAS quando tiver a resposta final. NÃO use para respostas parciais.',
       inputSchema: responseSchema,
       execute: async (params) => {
         const handoffParams = params as { shouldHandoff?: boolean }
@@ -335,6 +338,7 @@ export async function processChatAgent(
           shouldHandoff: handoffParams.shouldHandoff ?? false,
           sources: sources || params.sources,
         }
+        hasResponded = true // Marca que já respondeu
         return { success: true, message: params.message }
       },
     })
@@ -402,25 +406,32 @@ export async function processChatAgent(
 
     // Booking Flow tool - only created if agent has booking tool enabled
     if (agent.booking_tool_enabled) {
+      console.log(`[chat-agent] 📅 Booking tool is enabled, checking prerequisites...`)
       const { sendBookingFlow, checkBookingPrerequisites, BOOKING_TOOL_DESCRIPTION } = await import('@/lib/ai/tools/booking-tool')
 
       // Check if prerequisites are met (async check)
       const prereqs = await checkBookingPrerequisites()
+      console.log(`[chat-agent] 📅 Prerequisites check: ready=${prereqs.ready}, missing=${prereqs.missing.join(', ') || 'none'}`)
 
       if (prereqs.ready) {
         const sendBookingFlowTool = tool({
           description: BOOKING_TOOL_DESCRIPTION,
-          inputSchema: z.object({}), // No parameters needed
+          // Schema com campo opcional - alguns providers não lidam bem com schemas vazios
+          inputSchema: z.object({
+            confirm: z.boolean().optional().describe('Confirmação para enviar o formulário de agendamento (sempre true)')
+          }),
           execute: async () => {
-            console.log(`[chat-agent] LLM requested booking flow for: ${conversation.phone}`)
+            console.log(`[chat-agent] 📅 LLM requested booking flow for: ${conversation.phone}`)
             const result = await sendBookingFlow(conversation.phone)
 
             if (result.success) {
+              console.log(`[chat-agent] 📅 Booking flow sent successfully: ${result.messageId}`)
               return {
                 sent: true,
                 message: 'Formulário de agendamento enviado com sucesso. O cliente verá os horários disponíveis.',
               }
             }
+            console.log(`[chat-agent] 📅 Failed to send booking flow: ${result.error}`)
             return {
               sent: false,
               message: `Não foi possível enviar o formulário: ${result.error}`,
@@ -428,9 +439,9 @@ export async function processChatAgent(
           },
         })
         tools.sendBookingFlow = sendBookingFlowTool
-        console.log(`[chat-agent] Booking tool enabled and ready`)
+        console.log(`[chat-agent] 📅 Booking tool added to tools list`)
       } else {
-        console.log(`[chat-agent] Booking tool enabled but prerequisites not met: ${prereqs.missing.join(', ')}`)
+        console.log(`[chat-agent] ⚠️ Booking tool enabled but prerequisites not met: ${prereqs.missing.join(', ')}`)
       }
     }
 
@@ -439,18 +450,47 @@ export async function processChatAgent(
     console.log(`[chat-agent] Generating response with tools: ${Object.keys(tools).join(', ')}, multiStep: ${hasMultipleTools}`)
 
     // Generate with multi-step support when we have multiple tools
-    // stopWhen prevents infinite loops when LLM has choices (search, booking, etc.)
-    await generateText({
-      model,
-      system: systemPrompt,
-      messages: aiMessages,
-      tools,
-      ...(hasMultipleTools ? { stopWhen: stepCountIs(3) } : {}), // Allow: tool → think → respond
-      temperature: agent.temperature ?? DEFAULT_TEMPERATURE,
-      maxOutputTokens: agent.max_tokens ?? DEFAULT_MAX_TOKENS,
-    })
+    // Condição de parada: para assim que respond for chamado OU após 3 steps
+    const stopCondition = () => {
+      if (hasResponded) {
+        console.log(`[chat-agent] 🛑 Stopping: respond tool was called`)
+        return true
+      }
+      return false
+    }
+
+    console.log(`[chat-agent] 🚀 Calling generateText...`)
+    const startGenerate = Date.now()
+
+    try {
+      const result = await generateText({
+        model,
+        system: systemPrompt,
+        messages: aiMessages,
+        tools,
+        // Para quando respond for chamado OU após 3 steps (o que vier primeiro)
+        stopWhen: (event) => stopCondition() || stepCountIs(3)(event),
+        temperature: agent.temperature ?? DEFAULT_TEMPERATURE,
+        maxOutputTokens: agent.max_tokens ?? DEFAULT_MAX_TOKENS,
+      })
+
+      console.log(`[chat-agent] ✅ generateText completed in ${Date.now() - startGenerate}ms`)
+      console.log(`[chat-agent] Steps executed: ${result.steps?.length || 0}`)
+      console.log(`[chat-agent] Tool calls: ${JSON.stringify(result.steps?.map(s => s.toolCalls?.map(tc => tc.toolName)).flat().filter(Boolean) || [])}`)
+      console.log(`[chat-agent] Finish reason: ${result.finishReason}`)
+
+      // Log each step for debugging
+      result.steps?.forEach((step, i) => {
+        console.log(`[chat-agent] Step ${i + 1}: toolCalls=${step.toolCalls?.map(tc => tc.toolName).join(', ') || 'none'}, text=${step.text?.slice(0, 50) || 'none'}...`)
+      })
+
+    } catch (genError) {
+      console.error(`[chat-agent] ❌ generateText failed after ${Date.now() - startGenerate}ms:`, genError)
+      throw genError
+    }
 
     if (!response) {
+      console.error(`[chat-agent] ⚠️ No response object - respond tool was not called`)
       throw new Error('No response generated - LLM did not call respond tool')
     }
 
