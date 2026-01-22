@@ -101,3 +101,13 @@ coverage/
 
 # Backups / Utility
 tmp/
+
+# Local dev files (not for GitHub)
+.mcp.json
+logs_result.json
+placeholder.txt
+proxy.ts
+research.md
+
+# Docs (dev-only, kept locally)
+docs/

@@ -7,13 +7,65 @@ O formato é baseado em **[Keep a Changelog](https://keepachangelog.com/pt-BR/1.
 ## [Unreleased]
 
 ### Added
-- `docs/RELATORIO_EVOLUCAO_PARA_ALUNOS.md`: relatório de evolução do projeto para apresentação em aula.
+
+#### WhatsApp Flows (MiniApps Dinâmicos)
+- **Editor Unificado ("Tela Viva")**: Um único editor visual que suporta todos os tipos de Flow (formulário, agendamento, dinâmico).
+- **Preview editável inline**: Clique direto no preview para editar títulos, labels e botões.
+- **Caminhos (ramificação)**: Configuração de rotas condicionais sem editar JSON.
+- **Progressive Disclosure**: Modo avançado escondido até ser necessário.
+- **Confirmação pós-Flow**: Mensagem automática de resumo após finalização.
+- **Publicação na Meta**: Suporte completo a `routing_model`, `data_api_version: 3.0` e criptografia.
+- **Templates dinâmicos**: Badges "Simples"/"Dinâmico" e resolução de placeholders `${data.*}`.
+
+#### Agendamento (Google Calendar)
+- **Wizard de agendamento**: UI simplificada com 4 passos + preview dinâmico.
+- **CalendarPicker**: Calendário visual (v7.3 da Meta) com datas indisponíveis.
+- **Webhook externo**: Envio de payload JSON para URL configurável.
+- **Confirmação configurável**: Título, rodapé e campos personalizáveis.
+- **Serviços editáveis**: Sincronização entre editor e endpoint.
+
+#### Debug & Observabilidade
+- **Timeline de trace**: Tabela `campaign_trace_events` para inspeção de execuções.
+- **Trace View**: Painel de debug nos detalhes da campanha com auto-seleção do último run.
+- **Correlação ponta-a-ponta**: `traceId` do dispatch ao webhook.
+
+#### Segurança (Sentinel)
+- Headers HTTP defensivos (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, etc.).
+- Proteção de endpoints sensíveis (`/api/setup/*`) com API key obrigatória.
+- Blindagem pós-instalação: rotas de setup desativadas após `SETUP_COMPLETE=true`.
+- Validação de assinatura `X-Hub-Signature-256` no webhook Meta.
+- Rotas `/api/contacts/**` exigem sessão ou API key.
+
+#### UX & Acessibilidade
+- **100+ micro-melhorias de acessibilidade**: ARIA labels, focus-visible, aria-live regions.
+- **Tooltips** em todos os botões icon-only.
+- **ConfirmationDialog** reutilizável para ações destrutivas.
+- **Loading Skeletons** com animações escalonadas.
+- **Hover Effects** com glow sutil em cards e tabelas.
+
+#### DevTools
+- **Painel ngrok**: Controle de túneis em dev com Agent API.
+- **Auto-start ngrok**: Detecta e inicia automaticamente ao abrir Configurações.
+- **QStash com ngrok**: Disparo de campanhas funciona em ambiente local.
+- Script `npm run dev:with-ngrok` para iniciar Next.js + ngrok juntos.
+- Script `npm run whatsapp:context` para gerar contexto compacto de docs.
 
 ### Changed
-- N/A
+- Form builder agora suporta múltiplas etapas (telas).
+- Preview Meta simula navegação real via `routing_model`.
+- Clone de campanha usa rota `/api/campaigns/:id/clone`.
+- Datas do Flow em formato `DD/MM/YYYY` com dia da semana.
 
 ### Fixed
-- N/A
+- **Espaços preservados**: Editor não remove mais espaços em títulos, labels e botões.
+- **Confirmação sem duplicação**: Webhook não reempilha campos do resumo.
+- **Fallback de confirmação**: Busca por `flow_token`, `message_id` ou `from_phone`.
+- **Publish de flows dinâmicos**: Remoção de metadados internos (`__editor_*`, `__builder_id`).
+- **Chave pública Meta**: Parser corrigido para `data.data[0]`.
+- **Health check criptografado**: Ping do endpoint agora retorna resposta encriptada.
+- **Build errors**: 6+ erros de TypeScript corrigidos.
+
+---
 
 ## [2.0.0] - 2025-12-13
 
@@ -27,7 +79,7 @@ O formato é baseado em **[Keep a Changelog](https://keepachangelog.com/pt-BR/1.
   - Importação via CSV (`/api/contacts/import`) e estatísticas (`/api/contacts/stats`).
   - Tags, notas e **campos personalizados** (rotas `/api/custom-fields`).
   - UI de **edição rápida** de contato no contexto de campanhas (`ContactQuickEditModal`).
-  - Controle de cache em rotas para reduzir retorno de dados obsoletos (“flash-back”).
+  - Controle de cache em rotas para reduzir retorno de dados obsoletos ("flash-back").
 
 - **Campanhas**
   - CRUD/listagem/detalhes (`/campaigns`, `/campaigns/[id]`, `/api/campaigns`, `/api/campaigns/[id]`).
@@ -57,7 +109,7 @@ O formato é baseado em **[Keep a Changelog](https://keepachangelog.com/pt-BR/1.
 
 - Banco de dados **Supabase** (Postgres) com schema/migration consolidada e índices para:
   - `campaigns`, `contacts`, `campaign_contacts`, `templates`, `settings`, `account_alerts`, `template_projects`, `template_project_items`, `custom_field_definitions`.
-  - Estratégia de “snapshot” de contato por campanha (ex.: email/custom_fields no momento da campanha).
+  - Estratégia de "snapshot" de contato por campanha (ex.: email/custom_fields no momento da campanha).
 
 - Funções RPC no Postgres:
   - `get_dashboard_stats()` para estatísticas agregadas.
@@ -75,7 +127,7 @@ O formato é baseado em **[Keep a Changelog](https://keepachangelog.com/pt-BR/1.
 ### Changed
 - Atualização do `@upstash/workflow` para `0.3.0-rc` e ajuste de `overrides` para `jsondiffpatch`.
 - Remoção de configuração de headers CORS do `next.config.ts` (centralizando políticas na borda/infra quando aplicável).
-- Melhoria de cache/controle de staleness em rotas de contatos (cabeçalhos) para reduzir “flash-back” de dados.
+- Melhoria de cache/controle de staleness em rotas de contatos (cabeçalhos) para reduzir "flash-back" de dados.
 - Ajustes na visualização de campanha para considerar status **SKIPPED**.
 - Refactors de organização/legibilidade e ajustes de fluxo em rotas (ex.: atualização de contatos e campos personalizados).
 - Campanhas: atualização de lógica para **anexar `campaign_id`** em updates relacionados a contatos e **filtrar updates inválidos**.
@@ -89,41 +141,9 @@ O formato é baseado em **[Keep a Changelog](https://keepachangelog.com/pt-BR/1.
 ### Removed
 - Remoção de dependência do `@google/genai` do `package.json`.
 - Remoção de alguns testes/unitários e artefatos auxiliares (mantendo a base do template mais enxuta).
-- Remoção do diretório `.tmp/` (conteúdos de referência, specs e testes avançados que não fazem parte do “core” do template educacional).
+- Remoção do diretório `.tmp/` (conteúdos de referência, specs e testes avançados que não fazem parte do "core" do template educacional).
 
-### Docs
-- Atualizações no guia de configuração (`docs/GUIA_CONFIGURACAO.md`) com detalhes adicionais de setup/diagnóstico.
-
-### Engineering notes (histórico por commit)
-
-> Referência explícita dos commits que compõem este release, do mais antigo ao mais recente.
->
-> Data/hora **registrada no commit (Git)** no fuso **America/Sao_Paulo (UTC-3)**.
-> (Obs.: o Git não registra automaticamente a “hora exata” de cada modificação no código — apenas do commit.)
-
-- 12/12/2025 -15:04 `8505c0f`: first commit (base do app: `app/`, `components/`, `hooks/`, `lib/`, `services/`, `supabase/`, configs de deploy).
-- 12/12/2025 -15:51 `fe463d0`: chore: update `@upstash/workflow` para `0.3.0-rc` e `overrides`.
-- 12/12/2025 -15:54 `c57e94e`: remove dependência `@google/genai`.
-- 12/12/2025 -21:15 `4248fe0`: configuração do ESLint e ajustes correlatos.
-- 12/12/2025 -22:01 `05f24b6`: refactor geral de estrutura/legibilidade.
-- 13/12/2025 -10:03 `76b5375`: adiciona configuração inicial do Vitest (unit/integration) e arquivos auxiliares (posteriormente enxugados).
-- 13/12/2025 -10:18 `3c6520f`: fix timestamps nulos (`completedAt`) e tipos.
-- 13/12/2025 -10:30 `7aa3aa1`: melhora rastreamento de parâmetros no precheck de templates.
-- 13/12/2025 -11:07 `a4150d8`: adiciona pre-check em campanhas/contatos/variáveis e melhorias em rotas de setup.
-- 13/12/2025 -11:29 `14607c3`: modal de quick edit + humanização de mensagens do precheck + docs.
-- 13/12/2025 -12:06 `4d082d3`: feat(auth) multi-sessão + ajustes em serviços/docs.
-- 13/12/2025 -12:20 `d8b8dfd`: remove CORS headers do `next.config.ts`.
-- 13/12/2025 -12:20 `a64695b`: fix de import/tipos de rotas.
-- 13/12/2025 -12:36 `dfc196e`: refactor em custom-fields e lógica de update de contatos.
-- 13/12/2025 -12:47 `c9232ef`: stats/real em detalhes da campanha.
-- 13/12/2025 -13:03 `64234dd`: suporte a email em contatos.
-- 13/12/2025 -13:03 `a540152`: refactor e limpeza de artefatos.
-- 13/12/2025 -13:06 `4cf7629`: melhora foco/edição rápida e múltiplos custom fields.
-- 13/12/2025 -13:08 `26d705c`: remove testes e grande volume de conteúdo de referência (.tmp).
-- 13/12/2025 -13:23 `6c0f5e2`: considera status SKIPPED em exibição/reenvio.
-- 13/12/2025 -13:31 `22e04cd`: melhora cache headers e hooks/serviços de contatos.
-- 13/12/2025 -14:27 `613baf7`: melhorias em realtime/alertas/cache/validação e ajustes no schema.
-- 13/12/2025 -14:38 `885be45`: campanhas: adiciona `campaign_id` em updates e filtra updates inválidos.
+---
 
 [Unreleased]: https://github.com/thaleslaray/smartzap/compare/885be45...HEAD
 [2.0.0]: https://github.com/thaleslaray/smartzap/compare/8505c0f...885be45

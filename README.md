@@ -110,8 +110,8 @@ Antes de começar, você precisa de contas nestes serviços:
 | **GitHub** | Código do projeto | [github.com](https://github.com/) |
 | **Vercel** | Hospedagem | [vercel.com](https://vercel.com/) |
 | **Supabase** | Banco de dados | [supabase.com](https://supabase.com/) |
-| **Meta Business** | API do WhatsApp | [business.facebook.com](https://business.facebook.com/) |
-| **Upstash** | Fila de mensagens | [upstash.com](https://upstash.com/) |
+| **Upstash** | QStash (fila) + Redis (cache) | [upstash.com](https://upstash.com/) |
+| **Meta Business** | API do WhatsApp (depois) | [business.facebook.com](https://business.facebook.com/) |
 
 > **Dica**: Crie as contas antes de começar e deixe abertas em abas diferentes.
 
@@ -149,44 +149,48 @@ Antes de começar, você precisa de contas nestes serviços:
 1. **Acesse o wizard**
    - Abra: `https://SEU-PROJETO.vercel.app/install/start`
 
-2. **Prepare suas credenciais**
+2. **O wizard tem 5 etapas:**
 
-   **Token da Vercel:**
+   **Etapa 1 - Seus dados:**
+   - Nome completo
+   - Email
+   - Senha (será usada para login)
+
+   **Etapa 2 - Vercel:**
    - Vá em Vercel → Settings → Tokens
-   - Clique em "Create Token"
-   - Copie o token (aparece só uma vez!)
+   - Crie um token e cole no wizard
+   - Selecione o projeto SmartZap
 
-   **Credenciais do Supabase:**
+   **Etapa 3 - Supabase:**
    - Vá em [supabase.com](https://supabase.com/) → New Project
    - Aguarde a criação (2-3 minutos)
-   - Vá em Settings → API
-   - Copie: Project URL, anon key, service_role key
+   - **PAT (Access Token):** Account → Access Tokens → Generate
+   - **Project URL:** Settings → API → Project URL
+   - **Anon Key:** Settings → API → anon public
+   - **Service Role Key:** Settings → API → service_role (secret)
+   - **Senha do DB:** A senha que você definiu ao criar o projeto
 
-   **Credenciais do Upstash:**
-   - Vá em [upstash.com](https://upstash.com/) → Create Database
-   - Copie o QSTASH_TOKEN
+   **Etapa 4 - QStash:**
+   - Vá em [upstash.com](https://upstash.com/) → QStash
+   - Copie o `QSTASH_TOKEN`
 
-3. **Preencha o wizard**
+   **Etapa 5 - Redis:**
+   - Vá em [upstash.com](https://upstash.com/) → Redis → Create Database
+   - Copie `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`
 
-   O wizard vai pedir:
-   - Token da Vercel
-   - URL do Supabase
-   - Chaves do Supabase
-   - Token do QStash
-   - Senha de administrador
+3. **Confirme e execute**
 
-4. **Aguarde a instalação**
-
-   O wizard vai:
+   Após preencher tudo, o wizard vai:
+   - Configurar variáveis de ambiente na Vercel
    - Aplicar migrations no banco
-   - Configurar variáveis na Vercel
+   - Criar usuário administrador
    - Fazer redeploy automático
 
    **Tempo**: 3-5 minutos
 
-5. **Pronto!**
+4. **Pronto!**
 
-   Você será redirecionado para fazer login.
+   Você será redirecionado para fazer login com email e senha.
 
 > **Pronto quando**: Você conseguir fazer login!
 
@@ -196,7 +200,7 @@ Antes de começar, você precisa de contas nestes serviços:
 
 ### 1. Fazer login
 
-Acesse o sistema e faça login com a senha que você configurou no wizard.
+Acesse o sistema e faça login com o **email** e **senha** que você configurou no wizard.
 
 ### 2. Configurar WhatsApp
 
@@ -311,14 +315,19 @@ Depois:
 3. Escolha o modelo
 4. Salve
 
-### Upstash QStash
+### Upstash (QStash + Redis)
 
-O QStash é usado para processar campanhas em lote.
+O SmartZap usa dois serviços do Upstash:
 
-1. Vá em [upstash.com](https://upstash.com/)
-2. Crie um QStash
-3. Copie o token
-4. Configure em **Configurações** ou no wizard
+**QStash** - Fila para processar campanhas em lote:
+- Vá em [upstash.com](https://upstash.com/) → QStash
+- Copie o `QSTASH_TOKEN`
+
+**Redis** - Cache e dados de sessão:
+- Vá em [upstash.com](https://upstash.com/) → Redis → Create Database
+- Copie `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`
+
+> Ambos são configurados automaticamente pelo wizard.
 
 ---
 
