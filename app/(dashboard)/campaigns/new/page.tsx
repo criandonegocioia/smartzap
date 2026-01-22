@@ -586,14 +586,45 @@ export default function CampaignsNewRealPage() {
     if (audienceMode === 'teste') {
       const baseList: Contact[] = []
       if (sendToConfigured) {
-        // Usa o contato real se existir, senão cria um "virtual" com dados das settings
-        const testContact = configuredContact || (testContactQuery.data?.phone ? {
-          id: 'test_contact_virtual',
-          phone: testContactQuery.data.phone,
-          name: testContactQuery.data.name || 'Contato de Teste',
-          status: 'Opt-in',
-          custom_fields: {},
-        } as Contact : null)
+        // Usa o contato real se existir
+        let testContact = configuredContact
+
+        // Se não existe no banco mas tem dados nas settings, cria o contato
+        if (!testContact && testContactQuery.data?.phone) {
+          try {
+            const res = await fetch('/api/contacts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                phone: testContactQuery.data.phone,
+                name: testContactQuery.data.name || 'Contato de Teste',
+                status: 'Opt-in',
+              }),
+            })
+            if (res.ok) {
+              const created = await res.json() as Contact
+              testContact = created
+              setConfiguredContact(created)
+            } else {
+              throw new Error('Falha ao criar contato')
+            }
+          } catch (err) {
+            console.error('Erro ao criar contato de teste:', err)
+            // Fallback: tenta buscar caso já exista (race condition)
+            try {
+              const existing = await fetchJson<{ data: Contact[] }>(
+                `/api/contacts?limit=1&search=${encodeURIComponent(testContactQuery.data.phone)}`
+              )
+              if (existing?.data?.[0]) {
+                testContact = existing.data[0]
+                setConfiguredContact(testContact)
+              }
+            } catch {
+              // Se ainda falhar, não adiciona o contato
+            }
+          }
+        }
+
         if (testContact) baseList.push(testContact)
       }
       if (sendToSelected && selectedTestContact) baseList.push(selectedTestContact)
