@@ -1323,5 +1323,12 @@ ALTER TABLE ONLY public.workflow_versions
 ALTER TABLE ONLY public.workflows
     ADD CONSTRAINT workflows_active_version_fk FOREIGN KEY (active_version_id) REFERENCES public.workflow_versions(id) ON DELETE SET NULL;
 
--- PostgreSQL database dump complete
-\unrestrict 9kXX0Fi8Ba5hr0QDvl15uLdyASCa7mAWpiUnB11e0KEeTKeJrS9EsG4E74K2wmI
+-- =============================================================================
+-- REALTIME
+-- Habilita Supabase Realtime para tabelas que precisam de updates em tempo real
+-- =============================================================================
+
+ALTER PUBLICATION supabase_realtime ADD TABLE campaigns;
+ALTER PUBLICATION supabase_realtime ADD TABLE campaign_contacts;
+ALTER PUBLICATION supabase_realtime ADD TABLE inbox_conversations;
+ALTER PUBLICATION supabase_realtime ADD TABLE inbox_messages;

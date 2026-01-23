@@ -36,9 +36,11 @@ interface OnboardingModalProps {
   onMarkComplete: () => Promise<void>;
   /** Força exibição do modal em um step específico (ex: 'configure-webhook') */
   forceStep?: OnboardingStep;
+  /** Callback para fechar o modal (limpa forceStep no pai) */
+  onClose?: () => void;
 }
 
-export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete, forceStep }: OnboardingModalProps) {
+export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete, forceStep, onClose }: OnboardingModalProps) {
   const {
     progress,
     isLoaded,
@@ -82,12 +84,11 @@ export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete
 
   // Mostrar modal se:
   // 1. Fluxo inicial: não completou E não está conectado
-  // 2. Steps pós-conexão: mesmo após "completar" o wizard, permitir reabrir esses steps
-  //    (ex: usuário clicou "Configurar webhook" no checklist)
-  // IMPORTANTE: usa progress.currentStep para verificar se deve fechar (não currentStep que pode vir do forceStep)
+  // 2. forceStep foi passado pelo pai (ex: clicou em "Configurar" no checklist)
+  // 3. Steps pós-conexão: mesmo após "completar" o wizard, permitir reabrir esses steps
   const shouldShow = isLoaded && (
     (!isFullyComplete && shouldShowOnboardingModal && !isConnected) || // Fluxo inicial
-    (isPostConnectionStep && progress.currentStep !== 'complete') // Pós-conexão (fecha quando progress.currentStep === 'complete')
+    !!forceStep // Forçado pelo pai (checklist)
   );
 
   // Estado temporário para credenciais durante o wizard
@@ -182,12 +183,14 @@ export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete
               // Fecha o modal
               completeOnboarding();
               goToStep('complete');
+              onClose?.();
             }}
             onBack={async () => {
               // Se voltar, ainda marca como completo (webhook é opcional)
               await onMarkComplete();
               completeOnboarding();
               goToStep('complete');
+              onClose?.();
             }}
             stepNumber={6}
             totalSteps={totalSteps}

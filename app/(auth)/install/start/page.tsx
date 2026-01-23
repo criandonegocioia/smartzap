@@ -143,7 +143,13 @@ export default function InstallStartPage() {
     const redisUrl = localStorage.getItem(STORAGE_KEYS.REDIS_REST_URL);
     const redisToken = localStorage.getItem(STORAGE_KEYS.REDIS_REST_TOKEN);
 
-    // All tokens present → go to wizard
+    // Também verificar dados de identidade (necessários para o wizard)
+    const name = localStorage.getItem(STORAGE_KEYS.USER_NAME);
+    const email = localStorage.getItem(STORAGE_KEYS.USER_EMAIL);
+    const passwordHash = localStorage.getItem(STORAGE_KEYS.USER_PASS_HASH);
+
+    // All tokens AND identity data present → go to wizard
+    // (wizard também verifica name/email/passwordHash, então precisamos garantir que existem)
     if (
       vercelToken &&
       vercelProject &&
@@ -154,22 +160,21 @@ export default function InstallStartPage() {
       supabaseDbPass &&
       qstashToken &&
       redisUrl &&
-      redisToken
+      redisToken &&
+      name &&
+      email &&
+      passwordHash
     ) {
       router.replace('/install/wizard');
       return;
     }
 
-    // Load partial state
-    const name = localStorage.getItem(STORAGE_KEYS.USER_NAME) || '';
-    const email = localStorage.getItem(STORAGE_KEYS.USER_EMAIL) || '';
-    const passwordHash = localStorage.getItem(STORAGE_KEYS.USER_PASS_HASH) || '';
-
+    // Load partial state (usando as variáveis já lidas acima)
     setState((prev) => ({
       ...prev,
-      name,
-      email,
-      passwordHash,
+      name: name || '',
+      email: email || '',
+      passwordHash: passwordHash || '',
       vercelToken: vercelToken || '',
       vercelProject: vercelProject ? JSON.parse(vercelProject) : null,
       supabasePat: supabasePat || '',

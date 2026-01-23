@@ -37,6 +37,7 @@ import {
     ChecklistMiniBadge,
     OnboardingOverlay,
     useOnboardingProgress,
+    type OnboardingStep,
 } from '@/components/features/onboarding'
 
 export function DashboardShell({
@@ -86,6 +87,9 @@ export function DashboardShell({
         shouldShowChecklist,
         completeOnboarding,
     } = useOnboardingProgress()
+
+    // Estado para forçar abertura do modal em um step específico (ex: vindo do checklist)
+    const [forceModalStep, setForceModalStep] = useState<OnboardingStep | undefined>()
 
     // Onboarding status from database (fonte da verdade)
     const { data: onboardingDbStatus, refetch: refetchOnboardingStatus } = useQuery({
@@ -486,12 +490,13 @@ export function DashboardShell({
                 </header>
 
                 {/* WhatsApp Onboarding Modal */}
-                {showWhatsAppOnboarding && (
+                {(showWhatsAppOnboarding || forceModalStep) && (
                     <OnboardingModal
                         isConnected={!!isWhatsAppConnected}
                         onSaveCredentials={handleSaveCredentials}
                         onMarkComplete={handleMarkOnboardingComplete}
-                        forceStep={onboardingForceStep}
+                        forceStep={forceModalStep || onboardingForceStep}
+                        onClose={() => setForceModalStep(undefined)}
                     />
                 )}
 
@@ -504,6 +509,7 @@ export function DashboardShell({
                             <OnboardingChecklist
                                 healthStatus={healthStatus}
                                 onNavigate={(path) => router.push(path)}
+                                onOpenStep={setForceModalStep}
                             />
                         </div>
                     )}
