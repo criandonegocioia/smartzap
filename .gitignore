@@ -92,6 +92,8 @@ test-results/
 playwright-report/
 coverage/
 .nyc_output/
+tests/stress/reports/*
+!tests/stress/reports/.gitkeep
 
 # Legacy (can be removed)
 # vite.config.ts

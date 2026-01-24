@@ -456,43 +456,42 @@ Quanto mais informação, melhor!`}
                                 Dados Identificados
                             </h3>
 
-                            <div className="space-y-3 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-[var(--ds-text-muted)]">📦 Produto:</span>
-                                    <span className="text-[var(--ds-text-primary)] font-medium">{extractedContent.productName}</span>
-                                </div>
+                            <div className="grid grid-cols-[90px_1fr] gap-y-2 gap-x-4 text-sm">
+                                <span className="text-[var(--ds-text-muted)]">📦 Produto:</span>
+                                <span className="text-[var(--ds-text-primary)] font-medium">{extractedContent.productName}</span>
+
                                 {extractedContent.author && (
-                                    <div className="flex justify-between">
+                                    <>
                                         <span className="text-[var(--ds-text-muted)]">👤 Autor:</span>
                                         <span className="text-[var(--ds-text-primary)]">{extractedContent.author}</span>
-                                    </div>
+                                    </>
                                 )}
                                 {extractedContent.date && (
-                                    <div className="flex justify-between">
+                                    <>
                                         <span className="text-[var(--ds-text-muted)]">📅 Data:</span>
                                         <span className="text-[var(--ds-text-primary)]">{extractedContent.date} {extractedContent.time && `às ${extractedContent.time}`}</span>
-                                    </div>
+                                    </>
                                 )}
                                 {extractedContent.price && (
-                                    <div className="flex justify-between">
+                                    <>
                                         <span className="text-[var(--ds-text-muted)]">💰 Preço:</span>
                                         <span className="text-[var(--ds-text-primary)]">
                                             {extractedContent.discount && <span className="text-emerald-400 mr-2">{extractedContent.discount}</span>}
                                             {extractedContent.price}
                                         </span>
-                                    </div>
+                                    </>
                                 )}
                                 {extractedContent.guarantee && (
-                                    <div className="flex justify-between">
+                                    <>
                                         <span className="text-[var(--ds-text-muted)]">🛡️ Garantia:</span>
                                         <span className="text-[var(--ds-text-primary)]">{extractedContent.guarantee}</span>
-                                    </div>
+                                    </>
                                 )}
                                 {extractedContent.url && (
-                                    <div className="flex justify-between">
+                                    <>
                                         <span className="text-[var(--ds-text-muted)]">🔗 Link:</span>
-                                        <span className="text-blue-400 truncate max-w-[200px]">{extractedContent.url}</span>
-                                    </div>
+                                        <a href={extractedContent.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline truncate">{extractedContent.url}</a>
+                                    </>
                                 )}
                             </div>
 

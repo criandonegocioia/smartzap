@@ -52,17 +52,53 @@ Essas palavras vão nas marketing_variables, NUNCA no texto fixo!
 
 ## FORMATO DAS VARIÁVEIS
 
-**sample_variables** (para Meta aprovar):
-- {{1}}: Nome genérico → "Maria Silva", "Cliente", "João Santos"
-- {{2}}: Descrição neutra → "sua solicitação", "o serviço", "seu pedido"
-- {{3}}: Ação genérica → "o portal", "a página", "o link"
-- {{4}}: Data formal → "30/01/2025", "5 dias úteis", "data informada"
+**sample_variables** (para Meta aprovar) - COMPORTADOS E GENÉRICOS:
+- {{1}}: Nome completo formal → "Maria Silva", "João Santos", "Cliente"
+- {{2}}: Descrição burocrática → "sua solicitação", "o serviço solicitado", "seu pedido"
+- {{3}}: Ação institucional → "o portal", "a plataforma", "o sistema"
+- {{4}}: Data/prazo formal → "30/01/2025", "5 dias úteis", "prazo informado"
 
-**marketing_variables** (para cliente receber):
-- {{1}}: Nome personalizado → "João" (só primeiro nome)
-- {{2}}: PRODUTO + BENEFÍCIO → "o Curso Excel Pro com 70% OFF"
-- {{3}}: CTA + URGÊNCIA → "AGORA mesmo - só 10 vagas"
-- {{4}}: DEADLINE EMOCIONAL → "amanhã às 23h59 (depois fecha)"
+**marketing_variables** (para cliente receber) - AGRESSIVOS E PERSUASIVOS:
+
+⚠️ IMPORTANTE: As marketing_variables DEVEM ser MUITO mais agressivas que os exemplos abaixo!
+Use gatilhos mentais, números específicos, urgência real, escassez, benefícios tangíveis.
+
+- {{1}}: Só primeiro nome → "João", "Maria", "Pedro"
+- {{2}}: PRODUTO + GATILHO MENTAL + BENEFÍCIO TANGÍVEL
+  - ✅ "sua VAGA VIP na Imersão Vibecoding + bônus de R$2.997 GRÁTIS"
+  - ✅ "o acesso EXCLUSIVO ao Workshop de I.A. (com Gerador de Sistemas incluso)"
+  - ✅ "sua inscrição GARANTIDA no evento + comunidade exclusiva"
+  - ❌ "a Imersão em Vibecoding" (muito fraco, parece descrição!)
+
+- {{3}}: CTA FORTE + URGÊNCIA/ESCASSEZ
+  - ✅ "AGORA - restam apenas 23 vagas com garantia de 100%"
+  - ✅ "o link EXCLUSIVO antes que as vagas esgotem"
+  - ✅ "JÁ - com acesso imediato aos bônus"
+  - ❌ "o link" (muito fraco!)
+
+- {{4}}: DEADLINE COM EMOÇÃO + CONSEQUÊNCIA
+  - ✅ "HOJE às 23h59 (depois o preço DOBRA)"
+  - ✅ "amanhã às 19h - dia do evento! 🚀"
+  - ✅ "domingo à meia-noite (últimas horas com garantia)"
+  - ❌ "30/01/2025" (muito frio!)
+
+## EXEMPLOS COMPLETOS DE MARKETING_VARIABLES
+
+Para um workshop de I.A.:
+{
+  "1": "João",
+  "2": "sua VAGA GARANTIDA no Workshop Vibecoding + Sistema Gerador de Sistemas GRÁTIS",
+  "3": "AGORA - últimas 47 vagas com 100% de garantia",
+  "4": "amanhã às 19h (dia do evento ao vivo!) 🚀"
+}
+
+Para um curso com desconto:
+{
+  "1": "Maria",
+  "2": "o Curso Excel Pro com 70% OFF + 3 bônus exclusivos (R$997 de valor)",
+  "3": "HOJE - oferta válida só para os primeiros 100",
+  "4": "meia-noite de domingo (depois volta ao preço normal de R$497)"
+}
 
 ## REGRAS TÉCNICAS (OBRIGATÓRIAS)
 
@@ -110,9 +146,9 @@ Cada template deve ter:
     },
     "marketing_variables": {
       "1": "Maria",
-      "2": "[PRODUTO/OFERTA baseado no input]",
-      "3": "[CTA + URGÊNCIA]",
-      "4": "[DEADLINE EMOCIONAL]"
+      "2": "sua VAGA VIP no Workshop + bônus de R$2.000 em ferramentas GRÁTIS",
+      "3": "AGORA - restam apenas 31 vagas com garantia incondicional",
+      "4": "amanhã às 19h (dia do evento ao vivo!) 🔥"
     }
   }
 ]

@@ -28,7 +28,12 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
-    "test:all": "npm run test && npm run test:e2e"
+    "test:all": "npm run test && npm run test:e2e",
+    "test:stress": "tsx tests/stress/run-stress-test.ts",
+    "test:stress:local": "tsx tests/stress/run-stress-test.ts --target=http://localhost:3000/api/webhook",
+    "test:stress:prod": "tsx tests/stress/run-stress-test.ts --target=https://smartzap-eta.vercel.app/api/webhook",
+    "test:e2e:whatsapp": "vitest run tests/e2e-whatsapp/scenarios",
+    "test:e2e:whatsapp:watch": "vitest watch tests/e2e-whatsapp/scenarios"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.9",
@@ -69,6 +74,7 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@scalar/nextjs-api-reference": "^0.9.13",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.86.2",
     "@tailwindcss/postcss": "^4.1.17",

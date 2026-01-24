@@ -1,4 +1,4 @@
-openapi: 3.1.0
+openapi: 3.0.3
 
 info:
   title: SmartZap API
@@ -25,6 +25,7 @@ info:
     name: SmartZap
   license:
     name: Proprietary
+    url: https://smartzap.app/license
 
 servers:
   - url: http://localhost:3000
