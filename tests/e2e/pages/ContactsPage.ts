@@ -84,16 +84,16 @@ export class ContactsPage {
     this.contactModal = page.getByRole('heading', { name: 'Novo Contato', level: 2 })
       .or(page.getByRole('heading', { name: 'Editar Contato', level: 2 }))
     this.modalTitle = this.contactModal
-    this.nameInput = page.getByPlaceholder('Ex: João Silva')
-    this.phoneInput = page.getByPlaceholder('+55 11 99999-9999')
-    this.emailInput = page.getByPlaceholder('email@exemplo.com')
-    this.tagsInput = page.getByPlaceholder('VIP, Lead, Cliente')
+    // Campos do formulário - usando label com regex porque pode ter asterisco
+    this.nameInput = page.getByLabel(/Nome Completo/i)
+    this.phoneInput = page.getByLabel(/Telefone.*WhatsApp/i)
+    this.emailInput = page.getByLabel(/E-mail/i)
+    this.tagsInput = page.getByLabel(/Tags/i)
     this.statusSelect = page.locator('[role="dialog"]').getByLabel('Status')
     this.saveContactButton = page.getByRole('button', { name: 'Salvar Contato' })
     this.saveChangesButton = page.getByRole('button', { name: 'Salvar Alterações' })
     this.cancelButton = page.getByRole('button', { name: 'Cancelar' })
-    this.closeModalButton = page.locator('[aria-label*="Fechar formulário"]')
-      .or(page.locator('[role="dialog"] button').filter({ has: page.locator('svg') }).first())
+    this.closeModalButton = page.getByRole('button', { name: 'Fechar formulário de novo contato' })
 
     // Loading
     this.loadingSpinner = page.locator('.animate-spin, [role="status"]')
@@ -162,8 +162,9 @@ export class ContactsPage {
     // Salva
     await this.saveContactButton.click()
 
-    // Aguarda o modal fechar
-    await this.contactModal.waitFor({ state: 'hidden', timeout: 10000 })
+    // Aguarda o formulário fechar (heading desaparece)
+    await expect(this.page.getByRole('heading', { name: 'Novo Contato', level: 2 }))
+      .not.toBeVisible({ timeout: 10000 })
 
     // Aguarda a lista atualizar
     await this.page.waitForLoadState('networkidle')
@@ -226,7 +227,8 @@ export class ContactsPage {
     // O botão de editar é o primeiro na coluna de ações
     const editButton = row.locator('button').first()
     await editButton.click()
-    await this.contactModal.waitFor({ state: 'visible', timeout: 5000 })
+    // Aguarda o formulário de edição aparecer
+    await expect(this.phoneInput).toBeVisible({ timeout: 5000 })
   }
 
   /**
@@ -251,7 +253,8 @@ export class ContactsPage {
     }
 
     await this.saveChangesButton.click()
-    await this.contactModal.waitFor({ state: 'hidden', timeout: 10000 })
+    // Aguarda o formulário fechar
+    await expect(this.phoneInput).not.toBeVisible({ timeout: 10000 })
     await this.page.waitForLoadState('networkidle')
   }
 
