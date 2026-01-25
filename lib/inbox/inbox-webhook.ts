@@ -209,9 +209,15 @@ async function triggerAIProcessing(
   console.log(`🔥 [TRIGGER] Dispatching to ${aiRespondUrl}`)
 
   try {
-    // Headers para bypass de Vercel Deployment Protection
+    // Headers para autenticação e bypass
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+    }
+
+    // Adiciona API key para passar pelo middleware de autenticação
+    const apiKey = process.env.SMARTZAP_API_KEY
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`
     }
 
     // Se tiver bypass secret configurado, adiciona o header
