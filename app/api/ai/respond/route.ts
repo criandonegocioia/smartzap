@@ -230,7 +230,7 @@ async function getContactData(contactId: string): Promise<ContactContext | undef
 
   const { data, error } = await supabase
     .from('contacts')
-    .select('name, email, tags, created_at')
+    .select('name, email, created_at')
     .eq('id', contactId)
     .single()
 
@@ -239,7 +239,6 @@ async function getContactData(contactId: string): Promise<ContactContext | undef
   return {
     name: data.name || undefined,
     email: data.email || undefined,
-    tags: data.tags || undefined,
     created_at: data.created_at || undefined,
   }
 }
