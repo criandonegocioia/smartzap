@@ -192,6 +192,11 @@ export async function POST(req: NextRequest) {
         })
 
         console.log(`✅ [AI-RESPOND] Part ${i + 1}/${messageParts.length} sent: ${sendResult.messageId}`)
+
+        // Pausa entre mensagens para o typing da próxima ser mais visível
+        if (i < messageParts.length - 1) {
+          await new Promise(r => setTimeout(r, 500)) // 500ms de "respiro"
+        }
       } else {
         console.error(`❌ [AI-RESPOND] Failed to send part ${i + 1}:`, sendResult.error)
       }
