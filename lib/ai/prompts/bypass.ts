@@ -35,11 +35,11 @@ O conteúdo promocional vai TODO nas variáveis - a Meta não vê os valores!
 
 ## EXEMPLOS DE TEXTO FIXO (copie a neutralidade)
 
-✅ "Olá {{1}}, informamos que {{2}} foi confirmado. Os detalhes de {{3}} estão disponíveis até {{4}}."
-✅ "Olá {{1}}, comunicamos que {{2}} está disponível. Acesse {{3}} para mais informações até {{4}}."
-✅ "Olá {{1}}, notificamos que {{2}} foi processado. Confira {{3}} para acompanhar até {{4}}."
-✅ "Olá {{1}}, atualizamos o status de {{2}}. Veja {{3}} para detalhes até {{4}}."
-✅ "Olá {{1}}, seu acesso a {{2}} foi liberado. Utilize {{3}} para visualizar até {{4}}."
+✅ "Olá {{1}}, informamos que {{2}} foi confirmado. Os detalhes estão em {{3}} até {{4}}. Obrigado!"
+✅ "Olá {{1}}, comunicamos que {{2}} está disponível. Acesse {{3}} para mais informações. Prazo: {{4}}."
+✅ "Olá {{1}}, notificamos que {{2}} foi processado. Confira em {{3}} até {{4}}. Atenciosamente."
+✅ "Olá {{1}}, atualizamos o status de {{2}}. Veja em {{3}} os detalhes. Válido até {{4}}."
+✅ "Olá {{1}}, seu acesso a {{2}} foi liberado. Utilize {{3}} para visualizar. Expira em {{4}}."
 
 ## PROIBIDO NO TEXTO FIXO
 
@@ -102,8 +102,15 @@ Para um curso com desconto:
 
 ## REGRAS TÉCNICAS (OBRIGATÓRIAS)
 
-1. **NÃO COMEÇAR COM VARIÁVEL** - Sempre "Olá {{1}}"
-2. **NÃO TERMINAR COM VARIÁVEL** - Adicione ponto final após frase
+### ⛔ REGRA CRÍTICA - VARIÁVEIS NAS BORDAS (Meta rejeita com erro 2388299):
+- 🚫 NUNCA termine com "...até {{4}}." - a Meta IGNORA pontuação e considera variável no fim!
+- 🚫 ERRADO: "Acesse {{3}} para detalhes até {{4}}." ❌
+- ✅ CERTO: "Acesse {{3}} para detalhes. Prazo: {{4}}." ✅
+- ✅ CERTO: "Válido até {{4}}. Obrigado!" ✅
+- Sempre tenha TEXTO SIGNIFICATIVO (não só pontuação) antes/depois das variáveis.
+
+1. **NÃO COMEÇAR COM VARIÁVEL** - Sempre "Olá {{1}}", nunca "{{1}}, olá"
+2. **NÃO TERMINAR COM VARIÁVEL** - Adicione texto após a última variável (não só ponto!)
 3. **VARIÁVEIS SEQUENCIAIS** - {{1}}, {{2}}, {{3}}, {{4}} sem pular números
 4. **HEADER NEUTRO** - Sem emoji, máximo 60 chars, texto formal
 5. **FOOTER PADRÃO** - "Responda SAIR para não receber mais mensagens."
@@ -134,7 +141,7 @@ Cada template deve ter:
 [
   {
     "name": "notificacao_status_disponivel",
-    "content": "Olá {{1}}, informamos que {{2}} está disponível para você. Acesse {{3}} para visualizar os detalhes até {{4}}.",
+    "content": "Olá {{1}}, informamos que {{2}} está disponível para você. Acesse {{3}} para visualizar. Válido até {{4}}.",
     "header": { "format": "TEXT", "text": "Atualização de Status" },
     "footer": { "text": "Responda SAIR para não receber mais mensagens." },
     "buttons": [{ "type": "URL", "text": "Ver Detalhes", "url": "{{primaryUrl}}" }],
@@ -161,6 +168,7 @@ Para cada template, verifique:
 - [ ] sample_variables são genéricos e comportados?
 - [ ] marketing_variables têm o conteúdo promocional do input?
 - [ ] Variáveis são sequenciais (1, 2, 3, 4)?
-- [ ] Não começa nem termina com variável?
+- [ ] NÃO começa com variável? (deve ser "Olá {{1}}", não "{{1}}, olá")
+- [ ] NÃO termina com variável? (⚠️ "até {{4}}." é ERRADO - precisa de texto após!)
 
 AMBOS sample_variables e marketing_variables são OBRIGATÓRIOS!`;

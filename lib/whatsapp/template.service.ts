@@ -40,7 +40,12 @@ export class TemplateService {
             const result = await response.json()
 
             if (!response.ok) {
-                console.error('[TemplateService] Meta API Error:', JSON.stringify(result, null, 2))
+                console.error('[TemplateService] ====== META API ERROR ======')
+                console.error('[TemplateService] Template name:', data.name)
+                console.error('[TemplateService] Status:', response.status)
+                console.error('[TemplateService] Full error:', JSON.stringify(result, null, 2))
+                console.error('[TemplateService] Payload sent:', JSON.stringify(metaPayload, null, 2))
+                console.error('[TemplateService] ============================')
                 // Throw typed Error
                 throw new MetaAPIError(result.error)
             }

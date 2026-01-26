@@ -258,11 +258,12 @@ export const CreateTemplateSchema = z.object({
     const textHasEdgeParameter = (text: string) => {
         // A Meta considera inválido quando o primeiro/último "token" útil é uma variável.
         // Isso inclui casos como "{{1}}!" (pontuação no fim) e "( {{1}} )".
-        // Então removemos pontuação/símbolos nas bordas antes de checar.
+        // Removemos pontuação/símbolos nas bordas, EXCETO { e } que fazem parte das variáveis.
+        // Nota: \p{P} inclui { e }, então usamos negação explícita [^\s{}] para preservá-los.
         const trimmed = text
             .trim()
-            .replace(/^[\s\p{P}\p{S}]+/gu, '')
-            .replace(/[\s\p{P}\p{S}]+$/gu, '')
+            .replace(/^(?:[\s]|(?![{}])[\p{P}\p{S}])+/gu, '')
+            .replace(/(?:[\s]|(?![{}])[\p{P}\p{S}])+$/gu, '')
         if (!trimmed) return { starts: false, ends: false }
         return {
             starts: /^\{\{\s*[^}]+\s*\}\}/.test(trimmed),

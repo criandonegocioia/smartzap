@@ -19,6 +19,7 @@ import {
   Drama,
   Target,
 } from 'lucide-react'
+import { AIGatewayPanel } from '@/components/features/settings/AIGatewayPanel'
 import { HeliconePanel } from '@/components/features/settings/HeliconePanel'
 import { Mem0Panel } from '@/components/features/settings/Mem0Panel'
 import { Page, PageActions, PageDescription, PageHeader, PageTitle } from '@/components/ui/page'
@@ -1285,7 +1286,10 @@ export default function AICenterPage() {
         {/* Mem0 Memory Section */}
         <Mem0Panel />
 
-        {/* Helicone Observability Section */}
+        {/* AI Gateway Section */}
+        <AIGatewayPanel />
+
+        {/* Helicone Observability Section (usado quando Gateway desabilitado) */}
         <HeliconePanel />
 
         {/* Template Strategies Section - Collapsible */}
