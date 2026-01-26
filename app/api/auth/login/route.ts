@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     // Check if setup is complete
     const setupComplete = await isSetupComplete()
     // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/1294d6ce-76f2-430d-96ab-3ae4d7527327',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'app/api/auth/login/route.ts:12',message:'Login setupComplete check',data:{setupComplete,nodeEnv:process.env.NODE_ENV,vercelEnv:process.env.VERCEL_ENV},timestamp:Date.now()})}).catch(()=>{});
+    fetch('http://127.0.0.1:7243/ingest/1294d6ce-76f2-430d-96ab-3ae4d7527327',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'app/api/auth/login/route.ts:12',message:'Login setupComplete check',data:{setupComplete,nodeEnv:process.env.NODE_ENV,vercelEnv:process.env.VERCEL_ENV,nextRuntime:process.env.NEXT_RUNTIME,nodeVersion:process.versions?.node||'unknown'},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
     if (!setupComplete) {
       return NextResponse.json(
