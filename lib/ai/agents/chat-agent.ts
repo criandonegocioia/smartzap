@@ -633,6 +633,29 @@ export async function processChatAgent(
       console.log(`[chat-agent] Tool calls: ${JSON.stringify(result.steps?.map(s => s.toolCalls?.map(tc => tc.toolName)).flat().filter(Boolean) || [])}`)
       console.log(`[chat-agent] Finish reason: ${result.finishReason}`)
 
+      // 🔍 DIAGNÓSTICO: Log completo quando finishReason é error
+      if (result.finishReason === 'error') {
+        console.error(`[chat-agent] 🔴 PROVIDER ERROR DETAILS:`)
+        console.error(`[chat-agent] - finishReason: ${result.finishReason}`)
+        console.error(`[chat-agent] - text: ${result.text?.slice(0, 200) || 'none'}`)
+        console.error(`[chat-agent] - response headers: ${JSON.stringify(result.response?.headers || {})}`)
+        console.error(`[chat-agent] - warnings: ${JSON.stringify(result.warnings || [])}`)
+        console.error(`[chat-agent] - usage: ${JSON.stringify(result.usage || {})}`)
+        // Log raw response se existir
+        if (result.response?.body) {
+          console.error(`[chat-agent] - raw body available: true`)
+        }
+        // Log cada step em detalhe
+        result.steps?.forEach((step, i) => {
+          console.error(`[chat-agent] - Step ${i + 1} details:`, JSON.stringify({
+            finishReason: step.finishReason,
+            text: step.text?.slice(0, 100),
+            toolCalls: step.toolCalls?.length || 0,
+            warnings: step.warnings,
+          }))
+        })
+      }
+
       // Log each step for debugging
       result.steps?.forEach((step, i) => {
         console.log(`[chat-agent] Step ${i + 1}: toolCalls=${step.toolCalls?.map(tc => tc.toolName).join(', ') || 'none'}, text=${step.text?.slice(0, 50) || 'none'}...`)
