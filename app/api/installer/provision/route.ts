@@ -328,10 +328,19 @@ export async function POST(req: Request) {
 
   // Parse and validate payload
   console.log('[provision] 📦 Parseando payload...');
-  const raw = await req.json().catch((e) => {
-    console.log('[provision] ❌ Erro ao parsear JSON:', e);
-    return null;
+  const contentLengthHeader = req.headers.get('content-length') || '';
+  const rawText = await req.text().catch((e) => {
+    console.log('[provision] ❌ Erro ao ler body:', e);
+    return '';
   });
+  if (!rawText) {
+    console.log('[provision] ❌ Payload vazio (possível abort)');
+    return new Response(
+      JSON.stringify({ error: 'Payload vazio', details: { contentLengthHeader } }),
+      { status: 400 }
+    );
+  }
+  const raw = JSON.parse(rawText);
 
   const parsed = ProvisionSchema.safeParse(raw);
 

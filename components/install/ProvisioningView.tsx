@@ -23,6 +23,7 @@ interface ProvisioningViewProps {
 export function ProvisioningView({ data, progress, title, subtitle, onProgress, onReset }: ProvisioningViewProps) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasStartedRef = useRef(false);
+  const ignoreFirstCleanupRef = useRef(true);
   const safeProgress = Math.min(100, Math.max(0, progress));
 
   const startProvisioning = useCallback(async () => {
@@ -117,6 +118,10 @@ export function ProvisioningView({ data, progress, title, subtitle, onProgress, 
     startProvisioning();
     // Intentionally run only on mount - startProvisioning is stable
     return () => {
+      if (ignoreFirstCleanupRef.current) {
+        ignoreFirstCleanupRef.current = false;
+        return;
+      }
       abortControllerRef.current?.abort();
     };
   }, []);
