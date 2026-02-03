@@ -197,6 +197,7 @@ const DEFAULT_MODEL_ID = 'gemini-3-flash-preview'
 const DEFAULT_TEMPERATURE = 0.7
 const DEFAULT_MAX_TOKENS = 2048
 const AI_TIMEOUT_MS = 90_000 // 90 segundos - timeout para chamadas de IA (considera RAG + tools)
+const MAX_TOOL_RETRIES = 2 // Tentativas extras quando LLM não chama respond tool
 
 /**
  * Converte formatação Markdown para WhatsApp.
@@ -609,13 +610,6 @@ export async function processChatAgent(
     console.log(`[chat-agent] 🚀 Calling generateText...`)
     const startGenerate = Date.now()
 
-    // Timeout AbortController - previne que chamadas de IA fiquem penduradas
-    const abortController = new AbortController()
-    const timeoutId = setTimeout(() => {
-      console.error(`[chat-agent] ⏱️ AI call timed out after ${AI_TIMEOUT_MS}ms`)
-      abortController.abort()
-    }, AI_TIMEOUT_MS)
-
     // Build providerOptions for AI Gateway (BYOK-only, no system credential fallback)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let providerOptions: Record<string, any> | undefined
@@ -647,74 +641,132 @@ export async function processChatAgent(
       }
     }
 
-    try {
-      const result = await generateText({
-        model,
-        system: systemPrompt,
-        messages: aiMessages,
-        tools,
-        toolChoice: 'required', // FORÇA o LLM a chamar uma tool (respond)
-        // Para quando respond for chamado OU após 3 steps (o que vier primeiro)
-        stopWhen: (event) => stopCondition() || stepCountIs(3)(event),
-        temperature: agent.temperature ?? DEFAULT_TEMPERATURE,
-        maxOutputTokens: agent.max_tokens ?? DEFAULT_MAX_TOKENS,
-        abortSignal: abortController.signal,
-        // Pass providerOptions only when using AI Gateway
-        ...(providerOptions && { providerOptions }),
-      })
+    // =======================================================================
+    // RETRY LOOP: Tenta novamente se LLM não chamar respond tool
+    // Issue #8992: toolChoice: 'required' não é garantia, LLM pode retornar texto puro
+    // Solução: retry com prompt reforçado até MAX_TOOL_RETRIES tentativas
+    // =======================================================================
+    let retryCount = 0
+    let lastLLMText = '' // Guarda texto que o LLM gerou sem chamar tool
 
-      clearTimeout(timeoutId) // Limpa timeout se completou
+    while (!hasResponded && retryCount <= MAX_TOOL_RETRIES) {
+      // Timeout AbortController - previne que chamadas de IA fiquem penduradas
+      const abortController = new AbortController()
+      const timeoutId = setTimeout(() => {
+        console.error(`[chat-agent] ⏱️ AI call timed out after ${AI_TIMEOUT_MS}ms`)
+        abortController.abort()
+      }, AI_TIMEOUT_MS)
 
-      console.log(`[chat-agent] ✅ generateText completed in ${Date.now() - startGenerate}ms`)
-      console.log(`[chat-agent] Steps executed: ${result.steps?.length || 0}`)
-      console.log(`[chat-agent] Tool calls: ${JSON.stringify(result.steps?.map(s => s.toolCalls?.map(tc => tc.toolName)).flat().filter(Boolean) || [])}`)
-      console.log(`[chat-agent] Finish reason: ${result.finishReason}`)
+      // Se é retry, adiciona instrução reforçada ao system prompt
+      let currentSystemPrompt = systemPrompt
+      if (retryCount > 0) {
+        console.log(`[chat-agent] 🔄 Retry ${retryCount}/${MAX_TOOL_RETRIES} - LLM não chamou respond tool`)
+        currentSystemPrompt += `\n\n## INSTRUÇÃO CRÍTICA\nVocê DEVE chamar a tool "respond" para enviar sua resposta. NÃO responda com texto direto. Use a tool respond com message, sentiment e confidence.`
 
-      // 🔍 DIAGNÓSTICO: Log completo quando finishReason é error
-      if (result.finishReason === 'error') {
-        console.error(`[chat-agent] 🔴 PROVIDER ERROR DETAILS:`)
-        console.error(`[chat-agent] - finishReason: ${result.finishReason}`)
-        console.error(`[chat-agent] - text: ${result.text?.slice(0, 200) || 'none'}`)
-        console.error(`[chat-agent] - response headers: ${JSON.stringify(result.response?.headers || {})}`)
-        console.error(`[chat-agent] - warnings: ${JSON.stringify(result.warnings || [])}`)
-        console.error(`[chat-agent] - usage: ${JSON.stringify(result.usage || {})}`)
-        // Log raw response se existir
-        if (result.response?.body) {
-          console.error(`[chat-agent] - raw body available: true`)
+        // Adiciona o texto anterior como contexto se houver
+        if (lastLLMText) {
+          aiMessages.push({
+            role: 'assistant',
+            content: lastLLMText,
+          })
+          aiMessages.push({
+            role: 'user',
+            content: '[SISTEMA] Você precisa usar a tool "respond" para enviar sua resposta. Reformule sua resposta anterior usando a tool.',
+          })
         }
-        // Log cada step em detalhe
-        result.steps?.forEach((step, i) => {
-          console.error(`[chat-agent] - Step ${i + 1} details:`, JSON.stringify({
-            finishReason: step.finishReason,
-            text: step.text?.slice(0, 100),
-            toolCalls: step.toolCalls?.length || 0,
-            warnings: step.warnings,
-          }))
+      }
+
+      try {
+        const result = await generateText({
+          model,
+          system: currentSystemPrompt,
+          messages: aiMessages,
+          tools,
+          toolChoice: 'required', // FORÇA o LLM a chamar uma tool (respond)
+          // Para quando respond for chamado OU após 3 steps (o que vier primeiro)
+          stopWhen: (event) => stopCondition() || stepCountIs(3)(event),
+          temperature: agent.temperature ?? DEFAULT_TEMPERATURE,
+          maxOutputTokens: agent.max_tokens ?? DEFAULT_MAX_TOKENS,
+          abortSignal: abortController.signal,
+          // Pass providerOptions only when using AI Gateway
+          ...(providerOptions && { providerOptions }),
         })
+
+        clearTimeout(timeoutId) // Limpa timeout se completou
+
+        const attemptLabel = retryCount === 0 ? '' : ` (retry ${retryCount})`
+        console.log(`[chat-agent] ✅ generateText completed${attemptLabel} in ${Date.now() - startGenerate}ms`)
+        console.log(`[chat-agent] Steps executed: ${result.steps?.length || 0}`)
+        console.log(`[chat-agent] Tool calls: ${JSON.stringify(result.steps?.map(s => s.toolCalls?.map(tc => tc.toolName)).flat().filter(Boolean) || [])}`)
+        console.log(`[chat-agent] Finish reason: ${result.finishReason}`)
+
+        // 🔍 DIAGNÓSTICO: Log completo quando finishReason é error
+        if (result.finishReason === 'error') {
+          console.error(`[chat-agent] 🔴 PROVIDER ERROR DETAILS:`)
+          console.error(`[chat-agent] - finishReason: ${result.finishReason}`)
+          console.error(`[chat-agent] - text: ${result.text?.slice(0, 200) || 'none'}`)
+          console.error(`[chat-agent] - response headers: ${JSON.stringify(result.response?.headers || {})}`)
+          console.error(`[chat-agent] - warnings: ${JSON.stringify(result.warnings || [])}`)
+          console.error(`[chat-agent] - usage: ${JSON.stringify(result.usage || {})}`)
+          // Log raw response se existir
+          if (result.response?.body) {
+            console.error(`[chat-agent] - raw body available: true`)
+          }
+          // Log cada step em detalhe
+          result.steps?.forEach((step, i) => {
+            console.error(`[chat-agent] - Step ${i + 1} details:`, JSON.stringify({
+              finishReason: step.finishReason,
+              text: step.text?.slice(0, 100),
+              toolCalls: step.toolCalls?.length || 0,
+              warnings: step.warnings,
+            }))
+          })
+        }
+
+        // Log each step for debugging
+        result.steps?.forEach((step, i) => {
+          console.log(`[chat-agent] Step ${i + 1}: toolCalls=${step.toolCalls?.map(tc => tc.toolName).join(', ') || 'none'}, text=${step.text?.slice(0, 50) || 'none'}...`)
+        })
+
+        // Se LLM retornou texto mas não chamou respond, guarda para retry
+        if (!hasResponded && result.text) {
+          lastLLMText = result.text
+          console.log(`[chat-agent] ⚠️ LLM retornou texto sem chamar respond: "${result.text.slice(0, 100)}..."`)
+        }
+
+      } catch (genError) {
+        clearTimeout(timeoutId) // Limpa timeout em caso de erro
+        const elapsed = Date.now() - startGenerate
+
+        // Detecta se foi timeout
+        if (abortController.signal.aborted) {
+          console.error(`[chat-agent] ❌ generateText ABORTED (timeout) after ${elapsed}ms`)
+          throw new Error(`AI call timed out after ${AI_TIMEOUT_MS / 1000}s`)
+        }
+
+        console.error(`[chat-agent] ❌ generateText failed after ${elapsed}ms:`, genError)
+        throw genError
       }
 
-      // Log each step for debugging
-      result.steps?.forEach((step, i) => {
-        console.log(`[chat-agent] Step ${i + 1}: toolCalls=${step.toolCalls?.map(tc => tc.toolName).join(', ') || 'none'}, text=${step.text?.slice(0, 50) || 'none'}...`)
-      })
-
-    } catch (genError) {
-      clearTimeout(timeoutId) // Limpa timeout em caso de erro
-      const elapsed = Date.now() - startGenerate
-
-      // Detecta se foi timeout
-      if (abortController.signal.aborted) {
-        console.error(`[chat-agent] ❌ generateText ABORTED (timeout) after ${elapsed}ms`)
-        throw new Error(`AI call timed out after ${AI_TIMEOUT_MS / 1000}s`)
-      }
-
-      console.error(`[chat-agent] ❌ generateText failed after ${elapsed}ms:`, genError)
-      throw genError
+      retryCount++
     }
 
+    // Se ainda não respondeu após todos os retries, usa o texto como fallback
     if (!response) {
-      console.error(`[chat-agent] ⚠️ No response object - respond tool was not called`)
-      throw new Error('No response generated - LLM did not call respond tool')
+      if (lastLLMText) {
+        // Fallback: usa o texto que o LLM gerou como resposta
+        console.log(`[chat-agent] ⚠️ Fallback: usando texto direto do LLM como resposta`)
+        response = {
+          message: convertMarkdownToWhatsApp(lastLLMText),
+          sentiment: 'neutral',
+          confidence: 0.3, // Baixa confiança pois não seguiu o formato
+          shouldHandoff: false,
+          sources: sources,
+        }
+      } else {
+        console.error(`[chat-agent] ⚠️ No response object after ${retryCount} attempts - respond tool was not called`)
+        throw new Error('No response generated - LLM did not call respond tool after retries')
+      }
     }
 
     console.log(`[chat-agent] Response generated: "${response.message.slice(0, 100)}..."`)
